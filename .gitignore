@@ -6,6 +6,7 @@ CLAUDE.md
 plugin/YMM4Craft.DevHost/
 plugin/YMM4Craft.Core.Tests/
 **/Properties/launchSettings.json
+dist/
 
 ## Visual Studio / .NET
 
