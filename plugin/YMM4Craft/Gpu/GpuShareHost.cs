@@ -2,6 +2,7 @@ using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using YMM4Craft.Core.Protocol;
+using YukkuriMovieMaker.Commons;
 
 namespace YMM4Craft.Gpu;
 
@@ -12,6 +13,7 @@ public sealed class GpuShareHost : IDisposable
     public static GpuShareHost Shared { get; } = new();
 
     readonly Lock gate = new();
+    DisposeCollector disposer = new();
     ID3D11Device? device;
     Vortice.Luid luid;
     Vortice.Luid? preferredLuid;
@@ -19,13 +21,7 @@ public sealed class GpuShareHost : IDisposable
     TextureSet? current;
     TextureSet? previous;
 
-    sealed record TextureSet(GpuShareOffer Offer, ID3D11Texture2D[] Textures) : IDisposable
-    {
-        public void Dispose()
-        {
-            foreach (var t in Textures) t.Dispose();
-        }
-    }
+    sealed record TextureSet(GpuShareOffer Offer, ID3D11Texture2D[] Textures);
 
     public void SetPreferredAdapter(ID3D11Device ymm4Device)
     {
@@ -63,17 +59,18 @@ public sealed class GpuShareHost : IDisposable
                         BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
                         MiscFlags = ResourceOptionFlags.SharedKeyedMutex,
                     });
+                    disposer.Collect(textures[i]);
                     using var resource = textures[i].QueryInterface<IDXGIResource>();
                     handles[i] = resource.SharedHandle.ToInt64();
                 }
             }
             catch
             {
-                foreach (var t in textures) t?.Dispose();
+                Release(textures);
                 throw;
             }
 
-            previous?.Dispose();
+            if (previous is not null) Release(previous.Textures);
             previous = current;
             var offer = new GpuShareOffer(++generation, luid.LowPart, luid.HighPart, width, height, handles);
             current = new TextureSet(offer, textures);
@@ -105,6 +102,7 @@ public sealed class GpuShareHost : IDisposable
                 DeviceCreationFlags.BgraSupport, [FeatureLevel.Level_11_0, FeatureLevel.Level_10_0], out var created);
             result.CheckError();
             device = created!;
+            disposer.Collect(device);
             using var dxgiDevice = device.QueryInterface<IDXGIDevice>();
             using var actual = dxgiDevice.GetAdapter();
             luid = actual.Description.Luid;
@@ -115,13 +113,17 @@ public sealed class GpuShareHost : IDisposable
         }
     }
 
+    void Release(ID3D11Texture2D?[] textures)
+    {
+        for (var i = 0; i < textures.Length; i++) disposer.RemoveAndDispose(ref textures[i]);
+    }
+
     void ResetDevice()
     {
-        current?.Dispose();
-        previous?.Dispose();
         current = previous = null;
-        device?.Dispose();
         device = null;
+        disposer.Dispose();
+        disposer = new();
     }
 
     public void Dispose()

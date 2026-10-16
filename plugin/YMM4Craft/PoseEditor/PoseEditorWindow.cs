@@ -10,6 +10,7 @@ using System.Windows.Shapes;
 using YMM4Craft.Controls;
 using YMM4Craft.Core;
 using YMM4Craft.Gpu;
+using YukkuriMovieMaker.Commons;
 
 namespace YMM4Craft.PoseEditor;
 
@@ -34,7 +35,7 @@ internal sealed class PoseEditorWindow : Window
     WriteableBitmap? bitmap;
     readonly CancellationTokenSource closing = new();
     readonly GpuFrameReader gpuReader = new();
-    IDisposable? highFps;
+    readonly DisposeCollector disposer = new();
     long shownSequence = -1;
     bool poseChanged;
     readonly SemaphoreSlim sendSignal = new(0);
@@ -167,7 +168,7 @@ internal sealed class PoseEditorWindow : Window
         {
             RefreshPartList();
             ShowValues();
-            highFps = link.RequestHighFps();
+            disposer.Collect(link.RequestHighFps());
             CompositionTarget.Rendering += OnRendering;
             ChangeView();
             await SendLoopAsync(closing.Token);
@@ -179,8 +180,8 @@ internal sealed class PoseEditorWindow : Window
             PreviewKeyDown -= OnPreviewKeyDown;
             CompositionTarget.Rendering -= OnRendering;
             EndDrag();
-            highFps?.Dispose();
-            gpuReader.Dispose();
+            disposer.Collect(gpuReader);
+            disposer.Dispose();
             await link.EndEditorAsync();
         };
     }

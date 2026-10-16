@@ -24,6 +24,7 @@ internal sealed class SceneShapeSource(IGraphicsDevicesAndContext devices, Scene
     readonly IGraphicsDevicesAndContext devices = devices;
     readonly SceneShapeParameter parameter = parameter;
     readonly CraftLink link = CraftLink.Shared;
+    readonly DisposeCollector disposer = new();
 
     ID2D1CommandList? commandList;
     ID2D1Bitmap1? bitmap;
@@ -162,7 +163,7 @@ internal sealed class SceneShapeSource(IGraphicsDevicesAndContext devices, Scene
     {
         if (notice.Sequence == drawnGpuSequence && drawnSize == (screenWidth, screenHeight) && drawnFill == CurrentFill && drawnOverlay == overlay && commandList is not null) return;
 
-        receiver ??= new GpuFrameReceiver(devices.D3D.Device, devices.D3D.DeviceContext);
+        receiver ??= Keep(new GpuFrameReceiver(devices.D3D.Device, devices.D3D.DeviceContext));
         try
         {
             if (!receiver.TryCopy(offer, notice.GpuSlot) && receiver.Texture is null) return;
@@ -170,8 +171,7 @@ internal sealed class SceneShapeSource(IGraphicsDevicesAndContext devices, Scene
         catch (Exception ex) when (ex is SharpGen.Runtime.SharpGenException or InvalidOperationException)
         {
             link.DisableGpuShare($"YMM4側で共有テクスチャを開けませんでした: {ex.Message}");
-            receiver.Dispose();
-            receiver = null;
+            disposer.RemoveAndDispose(ref receiver);
             return;
         }
 
@@ -179,10 +179,10 @@ internal sealed class SceneShapeSource(IGraphicsDevicesAndContext devices, Scene
         var alpha = AlphaMode;
         if (gpuBitmap is null || !ReferenceEquals(gpuBitmapSource, receiver.Texture) || gpuBitmap.PixelFormat.AlphaMode != alpha)
         {
-            gpuBitmap?.Dispose();
+            disposer.RemoveAndDispose(ref gpuBitmap);
             using var surface = receiver.Texture!.QueryInterface<IDXGISurface>();
-            gpuBitmap = dc.CreateBitmapFromDxgiSurface(surface,
-                new BitmapProperties1(new PixelFormat(Format.B8G8R8A8_UNorm, alpha), 96, 96, BitmapOptions.None));
+            gpuBitmap = Keep(dc.CreateBitmapFromDxgiSurface(surface,
+                new BitmapProperties1(new PixelFormat(Format.B8G8R8A8_UNorm, alpha), 96, 96, BitmapOptions.None)));
             gpuBitmapSource = receiver.Texture;
         }
 
@@ -208,9 +208,9 @@ internal sealed class SceneShapeSource(IGraphicsDevicesAndContext devices, Scene
         if (bitmap is null || bitmap.PixelSize.Width != frame.Width || bitmap.PixelSize.Height != frame.Height || bitmap.PixelFormat.Format != format
             || bitmap.PixelFormat.AlphaMode != alpha)
         {
-            bitmap?.Dispose();
-            bitmap = dc.CreateBitmap(new SizeI(frame.Width, frame.Height), IntPtr.Zero, 0,
-                new BitmapProperties1(new PixelFormat(format, alpha), 96, 96, BitmapOptions.None));
+            disposer.RemoveAndDispose(ref bitmap);
+            bitmap = Keep(dc.CreateBitmap(new SizeI(frame.Width, frame.Height), IntPtr.Zero, 0,
+                new BitmapProperties1(new PixelFormat(format, alpha), 96, 96, BitmapOptions.None)));
         }
         unsafe
         {
@@ -237,7 +237,7 @@ internal sealed class SceneShapeSource(IGraphicsDevicesAndContext devices, Scene
         drawnOverlay = overlay;
         if (!overlay) return;
         EnsureText(dc);
-        overlayBrush ??= dc.CreateSolidColorBrush(new Color4(0f, 0f, 0f, 0.55f));
+        overlayBrush ??= Keep(dc.CreateSolidColorBrush(new Color4(0f, 0f, 0f, 0.55f)));
         var rect = CenteredRect(screenWidth, screenHeight);
         var box = new Vortice.RawRectF(rect.Left + 24, rect.Top + 24, rect.Left + 420, rect.Top + 88);
         dc.FillRectangle(box, overlayBrush);
@@ -246,9 +246,9 @@ internal sealed class SceneShapeSource(IGraphicsDevicesAndContext devices, Scene
 
     void EnsureText(ID2D1DeviceContext dc)
     {
-        dwrite ??= DWrite.DWriteCreateFactory<IDWriteFactory>();
-        textFormat ??= dwrite.CreateTextFormat("Yu Gothic UI", 32f);
-        textBrush ??= dc.CreateSolidColorBrush(new Color4(1f, 1f, 1f, 1f));
+        dwrite ??= Keep(DWrite.DWriteCreateFactory<IDWriteFactory>());
+        textFormat ??= Keep(dwrite.CreateTextFormat("Yu Gothic UI", 32f));
+        textBrush ??= Keep(dc.CreateSolidColorBrush(new Color4(1f, 1f, 1f, 1f)));
     }
 
     void DrawMessage(string message)
@@ -257,7 +257,7 @@ internal sealed class SceneShapeSource(IGraphicsDevicesAndContext devices, Scene
 
         var dc = devices.DeviceContext;
         EnsureText(dc);
-        backgroundBrush ??= dc.CreateSolidColorBrush(new Color4(0.12f, 0.14f, 0.12f, 1f));
+        backgroundBrush ??= Keep(dc.CreateSolidColorBrush(new Color4(0.12f, 0.14f, 0.12f, 1f)));
 
         var rect = CenteredRect(screenWidth, screenHeight);
 
@@ -282,8 +282,8 @@ internal sealed class SceneShapeSource(IGraphicsDevicesAndContext devices, Scene
     {
         drawnFill = CurrentFill;
         if (drawnFill is not { } c) return;
-        fillBrush?.Dispose();
-        fillBrush = dc.CreateSolidColorBrush(new Color4(c.R / 255f, c.G / 255f, c.B / 255f, c.A / 255f));
+        disposer.RemoveAndDispose(ref fillBrush);
+        fillBrush = Keep(dc.CreateSolidColorBrush(new Color4(c.R / 255f, c.G / 255f, c.B / 255f, c.A / 255f)));
         dc.FillRectangle(CenteredRect(screenWidth, screenHeight), fillBrush);
     }
 
@@ -291,8 +291,8 @@ internal sealed class SceneShapeSource(IGraphicsDevicesAndContext devices, Scene
 
     void BeginCommandList(ID2D1DeviceContext dc)
     {
-        commandList?.Dispose();
-        commandList = dc.CreateCommandList();
+        disposer.RemoveAndDispose(ref commandList);
+        commandList = Keep(dc.CreateCommandList());
         dc.Target = commandList;
         dc.BeginDraw();
         dc.Clear(null);
@@ -305,17 +305,11 @@ internal sealed class SceneShapeSource(IGraphicsDevicesAndContext devices, Scene
         commandList!.Close();
     }
 
-    public void Dispose()
+    T Keep<T>(T resource) where T : IDisposable
     {
-        commandList?.Dispose();
-        bitmap?.Dispose();
-        gpuBitmap?.Dispose();
-        receiver?.Dispose();
-        textBrush?.Dispose();
-        fillBrush?.Dispose();
-        overlayBrush?.Dispose();
-        backgroundBrush?.Dispose();
-        textFormat?.Dispose();
-        dwrite?.Dispose();
+        disposer.Collect(resource);
+        return resource;
     }
+
+    public void Dispose() => disposer.Dispose();
 }
