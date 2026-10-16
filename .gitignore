@@ -1,0 +1,76 @@
+## 公開しない開発用のもの
+
+docs/
+CLAUDE.md
+.claude/
+plugin/YMM4Craft.DevHost/
+plugin/YMM4Craft.Core.Tests/
+**/Properties/launchSettings.json
+
+## Visual Studio / .NET
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosv
+*.userprefs
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio cache folder
+.vs/
+
+# Test results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coverage
+*.coveragexml
+
+# NuGet
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+
+# Rider / VS Code
+.idea/
+*.sln.iml
+.vscode/
+
+## Gradle / Fabric
+
+mod/.gradle/
+mod/build/
+mod/run/
+mod/out/
+mod/remappedSrc/
+mod/.kotlin/
+*.iml
+*.ipr
+*.iws
+
+## DevHost の出力
+
+*.bmp
+*-audio.wav
+
+## OS
+
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store

@@ -1,0 +1,69 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+		<Version>1.0.0</Version>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<UseWPF>true</UseWPF>
+
+		<RepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\'))</RepoRoot>
+		<PathMap>$(RepoRoot)=.</PathMap>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\YMM4Craft.Core\YMM4Craft.Core.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Include="YukkuriMovieMaker">
+			<HintPath>$(YMM4DirPath)YukkuriMovieMaker.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="YukkuriMovieMaker.Controls">
+			<HintPath>$(YMM4DirPath)YukkuriMovieMaker.Controls.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="YukkuriMovieMaker.Plugin">
+			<HintPath>$(YMM4DirPath)YukkuriMovieMaker.Plugin.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Vortice.Direct2D1">
+			<HintPath>$(YMM4DirPath)Vortice.Direct2D1.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Newtonsoft.Json">
+			<HintPath>$(YMM4DirPath)Newtonsoft.Json.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Vortice.Direct3D11">
+			<HintPath>$(YMM4DirPath)Vortice.Direct3D11.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Vortice.DXGI">
+			<HintPath>$(YMM4DirPath)Vortice.DXGI.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Vortice.DirectX">
+			<HintPath>$(YMM4DirPath)Vortice.DirectX.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Vortice.Mathematics">
+			<HintPath>$(YMM4DirPath)Vortice.Mathematics.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="SharpGen.Runtime">
+			<HintPath>$(YMM4DirPath)SharpGen.Runtime.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="SharpGen.Runtime.COM">
+			<HintPath>$(YMM4DirPath)SharpGen.Runtime.COM.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+	</ItemGroup>
+
+	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
+		<Exec Command="mkdir &quot;$(YMM4DirPath)user\plugin\YMM4Craft&quot; &gt; NUL 2&gt;&amp;1&#xD;&#xA;copy &quot;$(TargetDir)YMM4Craft*.dll&quot; &quot;$(YMM4DirPath)user\plugin\YMM4Craft\&quot;" />
+	</Target>
+</Project>

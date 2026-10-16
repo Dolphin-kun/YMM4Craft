@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="YMM4Craft.Core/YMM4Craft.Core.csproj" />
+  <Project Path="YMM4Craft/YMM4Craft.csproj" />
+</Solution>
