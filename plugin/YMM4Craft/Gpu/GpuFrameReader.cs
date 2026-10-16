@@ -2,11 +2,13 @@ using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using YMM4Craft.Core.Protocol;
+using YukkuriMovieMaker.Commons;
 
 namespace YMM4Craft.Gpu;
 
 public sealed class GpuFrameReader : IDisposable
 {
+    DisposeCollector disposer = new();
     ID3D11Device? device;
     ID3D11DeviceContext? context;
     GpuFrameReceiver? receiver;
@@ -20,7 +22,7 @@ public sealed class GpuFrameReader : IDisposable
 
         if (staging is null || staging.Description.Width != offer.Width || staging.Description.Height != offer.Height)
         {
-            staging?.Dispose();
+            disposer.RemoveAndDispose(ref staging);
             staging = device!.CreateTexture2D(new Texture2DDescription
             {
                 Width = offer.Width,
@@ -32,6 +34,7 @@ public sealed class GpuFrameReader : IDisposable
                 Usage = ResourceUsage.Staging,
                 CPUAccessFlags = CpuAccessFlags.Read,
             });
+            disposer.Collect(staging);
         }
         context!.CopyResource(staging, receiver.Texture);
         var mapped = context.Map(staging, 0, MapMode.Read);
@@ -70,8 +73,11 @@ public sealed class GpuFrameReader : IDisposable
             D3D11.D3D11CreateDevice(adapter, DriverType.Unknown, DeviceCreationFlags.BgraSupport,
                 [FeatureLevel.Level_11_0, FeatureLevel.Level_10_0], out var created, out var createdContext).CheckError();
             device = created!;
+            disposer.Collect(device);
             context = createdContext!;
+            disposer.Collect(context);
             receiver = new GpuFrameReceiver(device, context);
+            disposer.Collect(receiver);
             deviceLuid = (offer.LuidLow, offer.LuidHigh);
         }
         finally
@@ -82,14 +88,12 @@ public sealed class GpuFrameReader : IDisposable
 
     void Close()
     {
-        staging?.Dispose();
         staging = null;
-        receiver?.Dispose();
         receiver = null;
-        context?.Dispose();
         context = null;
-        device?.Dispose();
         device = null;
+        disposer.Dispose();
+        disposer = new();
     }
 
     public void Dispose() => Close();

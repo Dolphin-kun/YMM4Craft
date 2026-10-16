@@ -1,3 +1,5 @@
+using System.Windows;
+using System.Windows.Threading;
 using YMM4Craft.Core;
 using YukkuriMovieMaker.Plugin.Shape;
 using YukkuriMovieMaker.Project;
@@ -13,7 +15,18 @@ public sealed class SceneShapePlugin : IShapePlugin
         if (Interlocked.Exchange(ref initialized, 1) == 0)
         {
             CraftLink.Shared.GpuShareProvider = Gpu.GpuShareHost.Shared.CreateOffer;
+            ReleaseOnExit();
         }
+    }
+
+    static void ReleaseOnExit()
+    {
+        if (Application.Current is not { } app) return;
+        app.Dispatcher.InvokeAsync(() =>
+        {
+            app.Exit += (_, _) => Gpu.GpuShareHost.Shared.Dispose();
+            if (app.MainWindow is { } window) window.Closed += (_, _) => Gpu.GpuShareHost.Shared.Dispose();
+        }, DispatcherPriority.ApplicationIdle);
     }
 
     public string Name => "YMM4Craftシーン";

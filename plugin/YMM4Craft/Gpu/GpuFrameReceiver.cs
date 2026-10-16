@@ -1,6 +1,7 @@
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using YMM4Craft.Core.Protocol;
+using YukkuriMovieMaker.Commons;
 
 namespace YMM4Craft.Gpu;
 
@@ -13,6 +14,7 @@ public sealed class GpuFrameReceiver(ID3D11Device device, ID3D11DeviceContext co
 
     readonly ID3D11Device device = device;
     readonly ID3D11DeviceContext context = context;
+    DisposeCollector disposer = new();
     int generation = -1;
     ID3D11Texture2D[] shared = [];
     IDXGIKeyedMutex[] mutexes = [];
@@ -49,10 +51,13 @@ public sealed class GpuFrameReceiver(ID3D11Device device, ID3D11DeviceContext co
             foreach (var handle in offer.Handles)
             {
                 var texture = device.OpenSharedResource<ID3D11Texture2D>(new IntPtr(handle));
+                disposer.Collect(texture);
                 textures.Add(texture);
-                keyed.Add(texture.QueryInterface<IDXGIKeyedMutex>());
+                var mutex = texture.QueryInterface<IDXGIKeyedMutex>();
+                disposer.Collect(mutex);
+                keyed.Add(mutex);
             }
-            Texture = device.CreateTexture2D(new Texture2DDescription
+            var copy = device.CreateTexture2D(new Texture2DDescription
             {
                 Width = offer.Width,
                 Height = offer.Height,
@@ -63,11 +68,12 @@ public sealed class GpuFrameReceiver(ID3D11Device device, ID3D11DeviceContext co
                 Usage = ResourceUsage.Default,
                 BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
             });
+            disposer.Collect(copy);
+            Texture = copy;
         }
         catch
         {
-            foreach (var m in keyed) m.Dispose();
-            foreach (var t in textures) t.Dispose();
+            Close();
             throw;
         }
         shared = [.. textures];
@@ -89,13 +95,12 @@ public sealed class GpuFrameReceiver(ID3D11Device device, ID3D11DeviceContext co
 
     void Close()
     {
-        foreach (var m in mutexes) m.Dispose();
-        foreach (var t in shared) t.Dispose();
         mutexes = [];
         shared = [];
-        Texture?.Dispose();
         Texture = null;
         generation = -1;
+        disposer.Dispose();
+        disposer = new();
     }
 
     public void Dispose() => Close();
