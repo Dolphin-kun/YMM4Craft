@@ -89,7 +89,7 @@ internal sealed class CatalogSelectorControl : UserControl, IPropertyEditorContr
             box.ToolTip = $"一覧を取得できませんでした（{ex.Message}）。minecraft:zombie のような名前を直接入れてください";
             return;
         }
-        view = CollectionViewSource.GetDefaultView((Kind == CatalogKind.Item ? catalog.Items : catalog.Mobs).ToList());
+        view = CollectionViewSource.GetDefaultView(CatalogNames.Entries(Kind).ToList());
         showing = true;
         var text = box.Text;
         box.ItemsSource = view;
@@ -152,7 +152,7 @@ internal sealed class CatalogSelectorControl : UserControl, IPropertyEditorContr
         if (typing) return;
         showing = true;
         box.SelectedItem = null;
-        box.Text = string.IsNullOrEmpty(Value) ? "" : CatalogNames.NameOf(Kind == CatalogKind.Item ? CatalogKind.Item : CatalogKind.Mob, Value);
+        box.Text = string.IsNullOrEmpty(Value) ? "" : CatalogNames.NameOf(Kind, Value);
         box.ToolTip = string.IsNullOrEmpty(Value) ? null : Value;
         showing = false;
     }

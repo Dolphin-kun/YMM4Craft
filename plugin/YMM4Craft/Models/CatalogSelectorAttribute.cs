@@ -14,7 +14,7 @@ internal sealed class CatalogSelectorAttribute(CatalogKind kind) : PropertyEdito
     {
         var selector = (CatalogSelectorControl)control;
         selector.Kind = kind == CatalogKind.ByModel
-            ? itemProperties.FirstOrDefault()?.PropertyOwner is SceneModel { Kind: SceneModelKind.Item } ? CatalogKind.Item : CatalogKind.Mob
+            ? itemProperties.FirstOrDefault()?.PropertyOwner is SceneModel model ? CatalogNames.KindOf(model.Kind) : CatalogKind.Mob
             : kind;
         control.SetBinding(CatalogSelectorControl.ValueProperty, ItemPropertiesBinding.Create2(itemProperties));
     }

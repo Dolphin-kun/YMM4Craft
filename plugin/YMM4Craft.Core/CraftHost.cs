@@ -214,23 +214,20 @@ public sealed class CraftHost : IAsyncDisposable
         foreach (var path in Directory.EnumerateFiles(SessionPaths.BaseDir))
         {
             var pid = SessionPaths.TryParseOwnerPid(Path.GetFileName(path));
-            if (pid is null || pid == Environment.ProcessId || IsProcessAlive(pid.Value)) continue;
+            if (pid is null || pid == Environment.ProcessId || IsOwnerAlive(pid.Value, path)) continue;
             DeleteQuietly(path);
         }
     }
 
-    static bool IsProcessAlive(int pid)
+    static bool IsOwnerAlive(int pid, string path)
     {
         try
         {
             using var p = System.Diagnostics.Process.GetProcessById(pid);
-            return !p.HasExited;
+            return !p.HasExited && p.StartTime <= File.GetLastWriteTime(path);
         }
-        catch (ArgumentException)
-        {
-            return false;
-        }
-        catch (InvalidOperationException)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception
+                                       or NotSupportedException or IOException or UnauthorizedAccessException)
         {
             return false;
         }

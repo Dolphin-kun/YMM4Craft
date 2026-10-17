@@ -99,7 +99,13 @@ internal sealed class ListPanel : DockPanel
         var button = IconButtons.Create(geometryKey, tip);
         button.Width = double.NaN;
         button.Height = double.NaN;
-        button.Margin = new Thickness(2, 1, 0, 1);
+        button.Margin = new Thickness(0);
+        button.Padding = new Thickness(4);
+        var icon = (FrameworkElement)button.Content;
+        icon.Width = double.NaN;
+        icon.Height = double.NaN;
+        icon.MaxWidth = IconButtons.IconSize;
+        icon.MaxHeight = IconButtons.IconSize;
         return button;
     }
 

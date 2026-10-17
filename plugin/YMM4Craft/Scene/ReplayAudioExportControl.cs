@@ -1,11 +1,12 @@
-using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using YMM4Craft.Controls;
 using YMM4Craft.Core;
 using YukkuriMovieMaker.Commons;
+using YukkuriMovieMaker.Resources.Icons;
 
 namespace YMM4Craft.Scene;
 
@@ -36,17 +37,27 @@ internal sealed class ReplayAudioExportControl : UserControl, IPropertyEditorCon
 
     public ReplayAudioExportControl()
     {
-        exportButton = new Button
+        exportButton = IconButtons.Create(GeometryKeys.FileExport, "音を WAV に書き出す\n右クリックで、リプレイ全体を書き出すこともできる");
+        exportButton.Click += async (_, _) => await ExportAsync(all: false);
+        var menu = new ContextMenu();
+        menu.Items.Add(ListPanel.MenuItem("このアイテムの部分を書き出す", () => _ = ExportAsync(all: false)));
+        menu.Items.Add(ListPanel.MenuItem("リプレイ全体を書き出す（録画した人の耳で聞く）", () => _ = ExportAsync(all: true)));
+        exportButton.ContextMenu = menu;
+        exportButton.ContextMenuOpening += (_, e) =>
         {
-            Content = "音を書き出す",
-            Padding = new Thickness(10, 1, 10, 1),
-            ToolTip = "このアイテムの長さぶんの音を WAV に書き出す。聞く位置はカメラになる",
+            if (!exportButton.IsEnabled) e.Handled = true;
         };
-        exportButton.Click += async (_, _) => await ExportAsync();
         status = new TextBlock { TextWrapping = TextWrapping.Wrap, Opacity = 0.8, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+        var folderButton = IconButtons.Create(GeometryKeys.FolderOpen, "書き出したフォルダをエクスプローラーで開く");
+        folderButton.Click += (_, _) =>
+        {
+            if (!FolderOpener.Show(exported) && !FolderOpener.Open(ReplayAudioExporter.Folder)) status.Text = "まだ書き出していません";
+        };
         var row = new DockPanel();
         DockPanel.SetDock(exportButton, Dock.Left);
+        DockPanel.SetDock(folderButton, Dock.Left);
         row.Children.Add(exportButton);
+        row.Children.Add(folderButton);
         row.Children.Add(status);
 
         fileName = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
@@ -69,8 +80,7 @@ internal sealed class ReplayAudioExportControl : UserControl, IPropertyEditorCon
         };
         fileChip.MouseLeftButtonDown += (_, e) =>
         {
-            if (e.ClickCount == 2 && exported is not null && File.Exists(exported))
-                Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{exported}\"") { UseShellExecute = true });
+            if (e.ClickCount == 2 && exported is not null && File.Exists(exported)) FolderOpener.Show(exported);
         };
 
         progress = new ProgressBar { Minimum = 0, Maximum = 1, Height = 16 };
@@ -140,7 +150,7 @@ internal sealed class ReplayAudioExportControl : UserControl, IPropertyEditorCon
         fileChip.Visibility = Visibility.Visible;
     }
 
-    async Task ExportAsync()
+    async Task ExportAsync(bool all)
     {
         if (target is not { } p) return;
         if (!CraftLink.Shared.IsConnected || !p.IsReplay)
@@ -148,11 +158,11 @@ internal sealed class ReplayAudioExportControl : UserControl, IPropertyEditorCon
             status.Text = "リプレイを開いてから書き出してください";
             return;
         }
-        var replayName = p.World[CraftLink.ReplayPrefix.Length..];
+        var suggested = await ReplayAudioExporter.FileNameAsync(p, all);
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
             Filter = "WAV ファイル|*.wav",
-            FileName = $"{Path.GetFileNameWithoutExtension(replayName)}.wav",
+            FileName = $"{suggested}.wav",
             InitialDirectory = Directory.Exists(ReplayAudioExporter.Folder) ? ReplayAudioExporter.Folder : null,
         };
         if (dialog.ShowDialog() != true) return;
@@ -161,7 +171,8 @@ internal sealed class ReplayAudioExportControl : UserControl, IPropertyEditorCon
         status.Text = "書き出し中…";
         try
         {
-            await ReplayAudioExporter.ExportAsync(p, dialog.FileName, exclusive: true);
+            if (all) await ReplayAudioExporter.ExportAllAsync(p, dialog.FileName, exclusive: true);
+            else await ReplayAudioExporter.ExportAsync(p, dialog.FileName, exclusive: true);
             Show(dialog.FileName);
             status.Text = "書き出しました";
         }

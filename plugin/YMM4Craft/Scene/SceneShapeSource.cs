@@ -81,7 +81,7 @@ internal sealed class SceneShapeSource(IGraphicsDevicesAndContext devices, Scene
             ["fov"] = Math.Clamp(parameter.Fov.GetValue(frame, length, fps), 1, 170),
             ["hideHud"] = parameter.HideHud,
             ["transparent"] = parameter.Background != SceneBackground.World,
-            ["models"] = new JsonArray([.. parameter.Models.Select(m => m.ToJson(frame, length, fps, SkinFiles.IdOf)).OfType<JsonNode>()]),
+            ["models"] = new JsonArray([.. parameter.Models.Select(m => m.ToJson(frame, length, fps, path => SkinFiles.IdOf(path, desc.Usage == TimelineSourceUsage.Exporting))).OfType<JsonNode>()]),
         };
         if (parameter.IsReplay)
         {

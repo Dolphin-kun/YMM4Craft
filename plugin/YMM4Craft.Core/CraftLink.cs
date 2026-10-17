@@ -23,6 +23,8 @@ public sealed class CraftLink : IAsyncDisposable
     (CraftHost Host, SceneCatalog Catalog)? catalog;
     readonly Dictionary<string, Task<string?>> skinUploads = [];
     CraftHost? skinHost;
+    readonly Dictionary<string, IReadOnlyList<BlockProperty>> blockProperties = [];
+    CraftHost? blockPropertiesHost;
     (string Name, WorldKind Kind, TaskCompletionSource<string> Done)? pendingCreate;
 
     bool paused;
@@ -226,11 +228,14 @@ public sealed class CraftLink : IAsyncDisposable
         return await h.RequestAsync("core.status", ct: ct).ConfigureAwait(false);
     }
 
+    public string? SavesFolder { get; private set; }
+
     public async Task<IReadOnlyList<string>> ListWorldsAsync(CancellationToken ct = default)
     {
         CraftHost h;
         lock (gate) h = host ?? throw new InvalidOperationException("Minecraftと接続していません");
         var result = await h.RequestAsync("core.listWorlds", ct: ct).ConfigureAwait(false);
+        if ((string?)result?["folder"] is { Length: > 0 } folder) SavesFolder = folder;
         return result?["worlds"]?.AsArray().Select(n => (string?)n).OfType<string>().ToList() ?? [];
     }
 
@@ -243,7 +248,7 @@ public sealed class CraftLink : IAsyncDisposable
             if (catalog is { } cached && ReferenceEquals(cached.Host, h)) return cached.Catalog;
         }
         var result = await h.RequestAsync("scene.catalog", ct: ct).ConfigureAwait(false);
-        var made = new SceneCatalog(Entries(result?["mobs"]), Entries(result?["items"]));
+        var made = new SceneCatalog(Entries(result?["mobs"]), Entries(result?["items"]), Entries(result?["blocks"]));
         lock (gate) catalog = (h, made);
         return made;
 
@@ -269,9 +274,34 @@ public sealed class CraftLink : IAsyncDisposable
             .ToList() ?? [];
     }
 
-    public string? UploadSkin(byte[] png, TimeSpan wait)
+    public async Task<IReadOnlyList<BlockProperty>> GetBlockPropertiesAsync(string type, CancellationToken ct = default)
     {
-        var key = Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(png));
+        CraftHost h;
+        lock (gate)
+        {
+            h = host ?? throw new InvalidOperationException("Minecraftと接続していません");
+            if (!ReferenceEquals(blockPropertiesHost, h))
+            {
+                blockProperties.Clear();
+                blockPropertiesHost = h;
+            }
+            if (blockProperties.TryGetValue(type, out var cached)) return cached;
+        }
+        var result = await h.RequestAsync("scene.blockProperties", new JsonObject { ["type"] = type }, ct: ct).ConfigureAwait(false);
+        IReadOnlyList<BlockProperty> found = result?["properties"]?.AsArray()
+            .Select(n => ((string?)n?["name"], n?["values"]?.AsArray().Select(v => (string?)v).OfType<string>().ToList() ?? [], (string?)n?["default"] ?? ""))
+            .Where(p => p.Item1 is not null && p.Item2.Count > 0)
+            .Select(p => new BlockProperty(p.Item1!, p.Item2, p.Item3))
+            .ToList() ?? [];
+        lock (gate)
+        {
+            if (ReferenceEquals(blockPropertiesHost, h)) blockProperties[type] = found;
+        }
+        return found;
+    }
+
+    public Task<string?>? UploadSkinAsync(string key, byte[] png)
+    {
         Task<string?> task;
         lock (gate)
         {
@@ -287,14 +317,7 @@ public sealed class CraftLink : IAsyncDisposable
                 skinUploads[key] = task;
             }
         }
-        try
-        {
-            return task.Wait(wait) ? task.Result : null;
-        }
-        catch (AggregateException)
-        {
-            return null;
-        }
+        return task;
 
         static async Task<string?> Upload(CraftHost h, byte[] png)
         {
@@ -343,12 +366,13 @@ public sealed class CraftLink : IAsyncDisposable
             (double?)view["yaw"] ?? 0, (double?)view["pitch"] ?? 0);
     }
 
-    public async Task<(CameraView View, bool IsRecordedPlayer)?> GetHomeAsync(CancellationToken ct = default)
+    public async Task<(CameraView View, bool IsRecordedPlayer)?> GetHomeAsync(string? player = null, CancellationToken ct = default)
     {
-        var home = await RequireHost().RequestAsync("scene.home", ct: ct).ConfigureAwait(false);
+        var args = string.IsNullOrEmpty(player) ? null : new JsonObject { ["player"] = player };
+        var home = await RequireHost().RequestAsync("scene.home", args, ct: ct).ConfigureAwait(false);
         if (home is null) return null;
         return (new CameraView((double?)home["x"] ?? 0, (double?)home["y"] ?? 0, (double?)home["z"] ?? 0,
-            (double?)home["yaw"] ?? 0, (double?)home["pitch"] ?? 0), (string?)home["kind"] == "recorded");
+            (double?)home["yaw"] ?? 0, (double?)home["pitch"] ?? 0), (string?)home["kind"] is "recorded" or "player");
     }
 
     public async Task<ReplayAudio> ExportReplayAudioAsync(double from, double to, IReadOnlyList<(double Time, CameraView View)>? camera, string path, bool exclusive = false, CancellationToken ct = default)
@@ -431,7 +455,8 @@ public sealed class CraftLink : IAsyncDisposable
                 (string?)n["world"] ?? "",
                 (string?)n["player"] ?? "",
                 (bool?)n["playable"] ?? true,
-                (string?)n["source"] ?? ""))
+                (string?)n["source"] ?? "",
+                (string?)n["path"] ?? ""))
             .OfType<ReplayInfo>()
             .ToList() ?? [];
     }
@@ -822,7 +847,7 @@ public sealed class CraftLink : IAsyncDisposable
                         if (lastSubmittedJson is not null)
                             pendingScene = ((JsonObject)JsonNode.Parse(lastSubmittedJson)!, lastSubmittedRevision);
                     }
-                    SetStatus(CraftLinkState.Ready, $"接続中: {label}");
+                    SetStatus(CraftLinkState.Ready, $"接続中: {label}{VersionNotice(h.Mod)}");
                     lock (gate)
                     {
                         if (pendingScene is not null && !sending)
@@ -874,6 +899,17 @@ public sealed class CraftLink : IAsyncDisposable
                 if (version == worldVersion) return;
             }
         }
+    }
+
+    static string VersionNotice(ModInfo? mod)
+    {
+        var own = typeof(CraftLink).Assembly.GetName().Version;
+        if (mod is null || own is null || !Version.TryParse(mod.ModVersion.Split('+')[0], out var theirs)) return "";
+        var compared = (theirs.Major, theirs.Minor).CompareTo((own.Major, own.Minor));
+        if (compared == 0) return "";
+        return compared < 0
+            ? $"（Minecraft の YMM4Craft が {mod.ModVersion} と古いため、一部の機能が使えません。Mod を {own.Major}.{own.Minor}.{own.Build} に更新してください）"
+            : $"（Minecraft の YMM4Craft {mod.ModVersion} のほうが新しいため、一部の機能が使えません。このプラグインを更新してください）";
     }
 
     void SetStatus(CraftLinkState state, string message)

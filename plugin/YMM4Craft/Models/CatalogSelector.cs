@@ -4,5 +4,6 @@ internal enum CatalogKind
 {
     Mob,
     Item,
+    Block,
     ByModel,
 }

@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using YMM4Craft.Controls;
@@ -15,9 +16,7 @@ internal static class ReplayAudioExporter
     const int MaxCameraSamples = 20000;
 
     static readonly Lock gate = new();
-    static readonly Dictionary<SceneShapeParameter, string> requested = new(ReferenceEqualityComparer.Instance);
-    static readonly Dictionary<SceneShapeParameter, long> quietUntil = new(ReferenceEqualityComparer.Instance);
-    static readonly HashSet<SceneShapeParameter> waiting = new(ReferenceEqualityComparer.Instance);
+    static readonly ConditionalWeakTable<SceneShapeParameter, ReplayAudioAutoState> states = new();
     const int QuietMilliseconds = 3000;
     static bool exporting;
 
@@ -31,7 +30,7 @@ internal static class ReplayAudioExporter
 
     public static string Folder => string.IsNullOrWhiteSpace(YMM4CraftSettings.Default.AudioFolder) ? DefaultFolder : YMM4CraftSettings.Default.AudioFolder.Trim().Trim('"');
 
-    public static string? AutoPath(SceneShapeParameter p)
+    static string? AutoKey(SceneShapeParameter p)
     {
         var (_, length) = p.PreviewPosition;
         var fps = p.PreviewFps;
@@ -43,10 +42,41 @@ internal static class ReplayAudioExporter
         {
             foreach (var a in new Animation[] { p.CameraX, p.CameraY, p.CameraZ, p.Yaw, p.Pitch }) signature.Append('|').Append(Json.GetJsonText(a));
         }
-        var hash = Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(signature.ToString())))[..12].ToLowerInvariant();
-        var name = Path.GetFileNameWithoutExtension(p.World[CraftLink.ReplayPrefix.Length..]);
+        return Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(signature.ToString())))[..12].ToLowerInvariant();
+    }
+
+    public static string? AutoPath(SceneShapeParameter p)
+    {
+        if (AutoKey(p) is not { } key || !Directory.Exists(Folder)) return null;
+        try
+        {
+            return Directory.EnumerateFiles(Folder, $"*_{key}.wav").FirstOrDefault();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    public static async Task<string> FileNameAsync(SceneShapeParameter p, bool all)
+    {
+        var replay = p.World[CraftLink.ReplayPrefix.Length..];
+        ReplayInfo? info = null;
+        try
+        {
+            info = (await CraftLink.Shared.ListReplaysAsync()).FirstOrDefault(r => r.Name == replay);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or TimeoutException or YMM4Craft.Core.Protocol.CraftCommandException)
+        {
+        }
+        var world = info?.World is { Length: > 0 } w ? w : "リプレイ";
+        var recorded = Path.GetFileNameWithoutExtension(replay);
+        var listener = all || p.IsPlayerView
+            ? p.ReplayPlayer.Length > 0 ? p.ReplayPlayer : info?.Player is { Length: > 0 } player ? player : "プレイヤー"
+            : "カメラ";
+        var name = $"{world}_{recorded}_{listener}{(all ? "_全体" : "")}";
         foreach (var c in Path.GetInvalidFileNameChars()) name = name.Replace(c, '_');
-        return Path.Combine(Folder, $"{name}_{hash}.wav");
+        return name;
     }
 
     public static void RequestAuto(SceneShapeParameter p)
@@ -54,8 +84,10 @@ internal static class ReplayAudioExporter
         if (!YMM4CraftSettings.Default.AutoExportAudio || CraftLink.Shared.State != CraftLinkState.Ready) return;
         lock (gate)
         {
-            quietUntil[p] = Environment.TickCount64 + QuietMilliseconds;
-            if (!waiting.Add(p)) return;
+            var state = states.GetOrCreateValue(p);
+            state.QuietUntil = Environment.TickCount64 + QuietMilliseconds;
+            if (state.Waiting) return;
+            state.Waiting = true;
         }
         _ = WaitQuietAsync(p);
     }
@@ -65,45 +97,48 @@ internal static class ReplayAudioExporter
         while (true)
         {
             long left;
-            lock (gate) left = quietUntil[p] - Environment.TickCount64;
+            lock (gate) left = states.GetOrCreateValue(p).QuietUntil - Environment.TickCount64;
             if (left <= 0) break;
             await Task.Delay(TimeSpan.FromMilliseconds(left));
         }
-        var path = YMM4CraftSettings.Default.AutoExportAudio && CraftLink.Shared.State == CraftLinkState.Ready ? AutoPath(p) : null;
+        var key = YMM4CraftSettings.Default.AutoExportAudio && CraftLink.Shared.State == CraftLinkState.Ready ? AutoKey(p) : null;
+        var exists = key is not null && AutoPath(p) is not null;
         var retry = false;
         lock (gate)
         {
-            waiting.Remove(p);
-            if (path is null || (requested.TryGetValue(p, out var last) && last == path)) return;
+            var state = states.GetOrCreateValue(p);
+            state.Waiting = false;
+            if (key is null || state.Requested == key) return;
             if (exporting)
             {
-                quietUntil[p] = Environment.TickCount64 + QuietMilliseconds;
-                if (!waiting.Add(p)) return;
+                state.QuietUntil = Environment.TickCount64 + QuietMilliseconds;
+                state.Waiting = true;
                 retry = true;
             }
             else
             {
-                requested[p] = path;
-                if (File.Exists(path)) return;
+                state.Requested = key;
+                if (exists) return;
                 exporting = true;
             }
         }
         if (retry) await WaitQuietAsync(p);
-        else await RunAutoAsync(p, path);
+        else await RunAutoAsync(p, key);
     }
 
-    static async Task RunAutoAsync(SceneShapeParameter p, string path)
+    static async Task RunAutoAsync(SceneShapeParameter p, string key)
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var path = Path.Combine(Folder, $"{await FileNameAsync(p, all: false)}_{key}.wav");
+            Directory.CreateDirectory(Folder);
             await ExportAsync(p, path);
             Exported?.Invoke(p, path);
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or TimeoutException or UnauthorizedAccessException
                                        or InvalidDataException or YMM4Craft.Core.Protocol.CraftCommandException)
         {
-            lock (gate) requested.Remove(p);
+            lock (gate) states.GetOrCreateValue(p).Requested = null;
         }
         finally
         {
@@ -134,6 +169,30 @@ internal static class ReplayAudioExporter
                 var (outLeft, outRight) = TimeStretch.Apply(left, right, rate, audio.Start, times, fps);
                 WavFile.Write(output, outLeft, outRight, rate);
             });
+        }
+        finally
+        {
+            CraftLink.Shared.ReplayAudioProgress -= OnProgress;
+            Progress?.Invoke(p, -1, "");
+            try { File.Delete(temp); } catch (IOException) { }
+        }
+    }
+
+    public static async Task ExportAllAsync(SceneShapeParameter p, string output, bool exclusive = false)
+    {
+        var name = p.World[CraftLink.ReplayPrefix.Length..];
+        var replays = await CraftLink.Shared.ListReplaysAsync();
+        var duration = replays.FirstOrDefault(r => r.Name == name)?.Duration.TotalSeconds ?? 0;
+        if (duration < 0.05) throw new InvalidOperationException("リプレイの長さがわかりません");
+        var temp = Path.Combine(Path.GetTempPath(), $"ymm4craft-audio-{Guid.NewGuid():N}.wav");
+        void OnProgress(double f, bool waiting) =>
+            Progress?.Invoke(p, f, waiting ? "プレビューを動かしている間は止まります" : f < 0.85 ? "音を集めています" : "音を重ねています");
+        Progress?.Invoke(p, 0, "書き出しを始めます");
+        CraftLink.Shared.ReplayAudioProgress += OnProgress;
+        try
+        {
+            await CraftLink.Shared.ExportReplayAudioAsync(0, Math.Min(duration, 6 * 3600), null, temp, exclusive);
+            File.Copy(temp, output, overwrite: true);
         }
         finally
         {

@@ -81,7 +81,7 @@ internal sealed class ParentSelectorControl : UserControl, IPropertyEditorContro
     async Task<List<Choice>> PartChoicesAsync()
     {
         var list = new List<Choice> { new("", "デフォルト") };
-        if (Model?.ParentModel is not { } parent || parent.Kind == SceneModelKind.Item) return list;
+        if (Model?.ParentModel is not { } parent || parent.Kind is SceneModelKind.Item or SceneModelKind.Block) return list;
         try
         {
             var kind = parent.Kind == SceneModelKind.Player ? "player" : "mob";

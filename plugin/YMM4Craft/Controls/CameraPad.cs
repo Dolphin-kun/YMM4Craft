@@ -62,8 +62,10 @@ internal sealed partial class CameraPad : UserControl, IPropertyEditorControl
         position = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Opacity = 0.8, Margin = new Thickness(6, 0, 4, 0) };
         var groundButton = IconButtons.Create(GeometryKeys.ElevatorUp, "地上へ");
         groundButton.Click += async (_, _) => await MoveToGroundAsync();
-        var homeButton = IconButtons.Create(GeometryKeys.AccountArrowRight, "プレイヤーの所へ");
-        homeButton.Click += async (_, _) => await MoveToHomeAsync();
+        var homeButton = IconButtons.Create(GeometryKeys.AccountArrowRight, "プレイヤーの所へ。右クリックで人を選ぶ");
+        homeButton.Click += async (_, _) => await MoveToHomeAsync(null);
+        homeButton.ContextMenu = new ContextMenu();
+        homeButton.ContextMenuOpening += async (_, _) => await FillPlayerMenuAsync(homeButton.ContextMenu);
         var toolBar = new ToolBar();
         toolBar.Items.Add(groundButton);
         toolBar.Items.Add(homeButton);
@@ -289,13 +291,39 @@ internal sealed partial class CameraPad : UserControl, IPropertyEditorControl
         }
     }
 
-    async Task MoveToHomeAsync()
+    async Task FillPlayerMenuAsync(ContextMenu menu)
+    {
+        menu.Items.Clear();
+        menu.Items.Add(new MenuItem { Header = "読み込み中…", IsEnabled = false });
+        List<(string Label, string? Name)> choices = [("プレイヤー", null)];
+        try
+        {
+            if (Core.CraftLink.Shared.IsConnected)
+            {
+                var (recorded, others) = await Core.CraftLink.Shared.ListReplayPlayersAsync();
+                if (recorded.Length > 0) choices = [(recorded, null)];
+                choices.AddRange(others.Select(n => (n, (string?)n)));
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.IO.IOException or TimeoutException or Core.Protocol.CraftCommandException)
+        {
+        }
+        menu.Items.Clear();
+        foreach (var (label, name) in choices)
+        {
+            var item = new MenuItem { Header = label };
+            item.Click += async (_, _) => await MoveToHomeAsync(name);
+            menu.Items.Add(item);
+        }
+    }
+
+    async Task MoveToHomeAsync(string? player)
     {
         if (Target is not { } t || !Core.CraftLink.Shared.IsConnected) return;
         var index = EditIndex(t);
         try
         {
-            if (await Core.CraftLink.Shared.GetHomeAsync() is not { } home) return;
+            if (await Core.CraftLink.Shared.GetHomeAsync(player) is not { } home) return;
             var view = home.View;
             var yaw = view.Yaw * Math.PI / 180;
             Apply(() =>

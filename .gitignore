@@ -55,6 +55,8 @@ bld/
 
 mod/.gradle/
 mod/build/
+mod/*/build/
+mod/run-neoforge/
 mod/run/
 mod/out/
 mod/remappedSrc/
