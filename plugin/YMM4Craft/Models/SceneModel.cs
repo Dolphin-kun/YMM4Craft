@@ -67,12 +67,13 @@ public sealed partial class SceneModel : Animatable
 
     static readonly string[] VisibilityProperties =
     [
-        nameof(HasBody), nameof(HasType), nameof(ShowLookBody), nameof(ShowLookMob), nameof(ShowLookPlayer), nameof(ShowSkinFile), nameof(ShowSkinName), nameof(ShowArmor),
+        nameof(HasBody), nameof(HasType), nameof(IsBlock), nameof(ShowLookBody), nameof(ShowLookMob), nameof(ShowLookPlayer), nameof(ShowSkinFile), nameof(ShowSkinName), nameof(ShowArmor),
         nameof(ShowEffects), nameof(ShowEffectsBody), nameof(ShowEffectsMob), nameof(ShowGlowColor), nameof(ShowParent), nameof(ShowPose),
     ];
 
     [JsonIgnore] public bool HasBody => Kind is SceneModelKind.Mob or SceneModelKind.Player;
     [JsonIgnore] public bool HasType => Kind != SceneModelKind.Player;
+    [JsonIgnore] public bool IsBlock => Kind == SceneModelKind.Block;
     [JsonIgnore] public bool ShowLookBody => UseLook && (HasBody || Kind == SceneModelKind.Block);
     [JsonIgnore] public bool ShowLookMob => UseLook && Kind == SceneModelKind.Mob;
     [JsonIgnore] public bool ShowLookPlayer => UseLook && Kind == SceneModelKind.Player;
@@ -156,6 +157,12 @@ public sealed partial class SceneModel : Animatable
         }
     }
     string type = "";
+
+    [Display(GroupName = Group, Name = "状態", Description = "ブロックの向きや形。階段の向き・ハーフブロックの上下・ドアの開閉など")]
+    [BlockStateSelector]
+    [ShowPropertyEditorWhen(nameof(IsBlock), true)]
+    public string BlockState { get => blockState; set => Set(ref blockState, value ?? ""); }
+    string blockState = "";
 
     [Display(GroupName = Group, Name = "X")]
     [AnimationSlider("F2", "", -16, 16)]
@@ -408,6 +415,7 @@ public sealed partial class SceneModel : Animatable
             Skin = Skin,
             SkinModel = SkinModel,
             Nbt = Nbt,
+            BlockState = BlockState,
             OnFire = OnFire,
             Glowing = Glowing,
             GlowColor = GlowColor,
@@ -495,7 +503,11 @@ public sealed partial class SceneModel : Animatable
             if (CatalogNames.ToId(OffHand) is { } off) o["offHand"] = off;
         }
 
-        if (Kind == SceneModelKind.Block) o["scale"] = Math.Clamp(Scale.GetValue(frame, length, fps), 0.0625, 16);
+        if (Kind == SceneModelKind.Block)
+        {
+            o["scale"] = Math.Clamp(Scale.GetValue(frame, length, fps), 0.0625, 16);
+            if (BlockStatePattern().IsMatch(BlockState)) o["state"] = BlockState;
+        }
         if (HasBody)
         {
             o["scale"] = Math.Clamp(Scale.GetValue(frame, length, fps), 0.0625, 16);
@@ -527,10 +539,9 @@ public sealed partial class SceneModel : Animatable
         if (HasBody)
         {
             var parts = new System.Text.Json.Nodes.JsonArray();
-            var origin = ((double)o["x"]!, (double)o["y"]!, (double)o["z"]!);
             foreach (var p in Pose)
             {
-                if (p.ToJson(a => a.GetValue(frame, length, fps), origin) is { } part) parts.Add(part);
+                if (p.ToJson(a => a.GetValue(frame, length, fps)) is { } part) parts.Add(part);
             }
             if (parts.Count > 0) o["pose"] = parts;
         }
@@ -559,4 +570,7 @@ public sealed partial class SceneModel : Animatable
 
     [System.Text.RegularExpressions.GeneratedRegex("^[A-Za-z0-9_]{3,16}$")]
     private static partial System.Text.RegularExpressions.Regex PlayerNamePattern();
+
+    [System.Text.RegularExpressions.GeneratedRegex("^[a-z0-9_]{1,64}=[a-z0-9_]{1,64}(,[a-z0-9_]{1,64}=[a-z0-9_]{1,64}){0,31}$")]
+    private static partial System.Text.RegularExpressions.Regex BlockStatePattern();
 }

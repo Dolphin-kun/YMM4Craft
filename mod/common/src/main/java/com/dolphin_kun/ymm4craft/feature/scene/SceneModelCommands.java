@@ -31,6 +31,7 @@ final class SceneModelCommands {
     static void register(CommandRegistry registry) {
         registry.register("scene.catalog", p -> CommandRegistry.onMainThread(ModelCatalog::catalog));
         registry.register("scene.modelParts", SceneModelCommands::modelParts);
+        registry.register("scene.blockProperties", SceneModelCommands::blockProperties);
         registry.register("scene.uploadSkin", SceneModelCommands::uploadSkin);
         registry.register("scene.ground", SceneModelCommands::ground);
         registry.register("scene.home", p -> {
@@ -48,6 +49,17 @@ final class SceneModelCommands {
             if (mc.level == null) throw new RuntimeException(new CommandException("ワールドを開いていません"));
             try {
                 return ModelCatalog.parts(mc.level, kind, type, baby);
+            } catch (IllegalArgumentException e) {
+                throw new RuntimeException(new CommandException(e.getMessage()));
+            }
+        });
+    }
+
+    private static CompletableFuture<JsonElement> blockProperties(CommandParams p) throws CommandException {
+        Identifier type = Identifier.tryParse(p.getString("type", REGISTRY_ID));
+        return CommandRegistry.onMainThread(() -> {
+            try {
+                return ModelCatalog.blockProperties(type);
             } catch (IllegalArgumentException e) {
                 throw new RuntimeException(new CommandException(e.getMessage()));
             }

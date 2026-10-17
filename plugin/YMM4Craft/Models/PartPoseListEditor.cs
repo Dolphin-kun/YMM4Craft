@@ -34,15 +34,18 @@ internal sealed class PartPoseListEditor : UserControl, IPropertyEditorControl, 
 
     public PartPoseListEditor()
     {
-        var openButton = new Button
-        {
-            Content = "ポーズエディタを開く",
-            ToolTip = "モデルを大きく映し、部位をクリックして選び、ギズモやドラッグで回す",
-        };
+        var openButton = IconButtons.Create(GeometryKeys.HumanEdit, "ポーズエディタを開く\nモデルを大きく映し、部位をクリックして選び、ギズモやドラッグで回す");
         openButton.Click += (_, e) =>
         {
             e.Handled = true;
             OpenWindow();
+        };
+        var toolBar = new ToolBar();
+        toolBar.Items.Add(openButton);
+        toolBar.Loaded += (_, _) =>
+        {
+            if (toolBar.Template.FindName("OverflowGrid", toolBar) is FrameworkElement overflow) overflow.Visibility = Visibility.Collapsed;
+            if (toolBar.Template.FindName("ToolBarThumb", toolBar) is FrameworkElement thumb) thumb.Visibility = Visibility.Collapsed;
         };
 
         var panelList = new ListPanel();
@@ -66,7 +69,7 @@ internal sealed class PartPoseListEditor : UserControl, IPropertyEditorControl, 
         details.EndEdit += (_, e) => EndEdit?.Invoke(this, e);
 
         var panel = new StackPanel();
-        panel.Children.Add(openButton);
+        panel.Children.Add(toolBar);
         panel.Children.Add(panelList);
         panel.Children.Add(details);
         Content = panel;
@@ -218,7 +221,6 @@ internal sealed class PartPoseListEditor : UserControl, IPropertyEditorControl, 
     {
         foreach (var a in new[] { pose.X, pose.Y, pose.Z, pose.Bend, pose.BendSide })
             foreach (var v in a.Values) v.Value = 0;
-        pose.Aim = false;
     }
 
     void OpenWindow()

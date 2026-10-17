@@ -47,9 +47,10 @@ internal sealed class WorldSelectorControl : UserControl, IPropertyEditorControl
     readonly Button disconnectButton;
     readonly DispatcherTimer statusTimer;
     bool busy;
+    bool showing;
 
     const double RowHeight = IconButtons.Size;
-    static readonly Thickness RowMargin = new(0, 0, 0, 2);
+    static readonly Thickness RowMargin = new(0);
 
     public WorldSelectorControl()
     {
@@ -71,8 +72,18 @@ internal sealed class WorldSelectorControl : UserControl, IPropertyEditorControl
 
         nameBox = new ComboBox { IsEditable = true, Height = RowHeight, VerticalContentAlignment = VerticalAlignment.Center, ToolTip = "ワールド名" };
         nameBox.DropDownOpened += async (_, _) => await RefreshWorldListAsync();
-        openButton = IconButtons.Create(GeometryKeys.FolderOpen, "開く");
-        openButton.Click += (_, _) => Commit(nameBox.Text.Trim());
+        nameBox.SelectionChanged += (_, _) =>
+        {
+            if (!showing && nameBox.SelectedItem is string world) Commit(world);
+        };
+        nameBox.KeyDown += (_, e) =>
+        {
+            if (e.Key != System.Windows.Input.Key.Enter) return;
+            e.Handled = true;
+            Commit(nameBox.Text.Trim());
+        };
+        openButton = IconButtons.Create(GeometryKeys.FolderOpen, "ワールドのフォルダをエクスプローラーで開く");
+        openButton.Click += async (_, _) => await ShowWorldFolderAsync();
         openRow = Row(nameBox, openButton);
 
         newNameBox = new TextBox { Height = RowHeight, VerticalContentAlignment = VerticalAlignment.Center, ToolTip = "新しく作るワールドの名前" };
@@ -96,11 +107,12 @@ internal sealed class WorldSelectorControl : UserControl, IPropertyEditorControl
 
         replayBox = new ComboBox { Height = RowHeight, VerticalContentAlignment = VerticalAlignment.Center, DisplayMemberPath = nameof(ReplayChoice.Label), ToolTip = "リプレイ" };
         replayBox.DropDownOpened += async (_, _) => await RefreshReplayListAsync();
-        replayButton = IconButtons.Create(GeometryKeys.FolderOpen, "開く");
-        replayButton.Click += (_, _) =>
+        replayBox.SelectionChanged += (_, _) =>
         {
-            if (replayBox.SelectedItem is ReplayChoice choice) Commit(CraftLink.ReplayPrefix + choice.Name);
+            if (!showing && replayBox.SelectedItem is ReplayChoice choice) Commit(CraftLink.ReplayPrefix + choice.Name);
         };
+        replayButton = IconButtons.Create(GeometryKeys.FolderOpen, "リプレイのファイルをエクスプローラーで開く");
+        replayButton.Click += async (_, _) => await ShowReplayFileAsync();
         replayRow = Row(replayBox, replayButton);
         replayRow.Visibility = Visibility.Collapsed;
 
@@ -130,7 +142,7 @@ internal sealed class WorldSelectorControl : UserControl, IPropertyEditorControl
         var row = new DockPanel { Margin = RowMargin, MinHeight = RowHeight };
         for (var i = right.Length - 1; i >= 0; i--)
         {
-            right[i].Margin = new Thickness(2, 0, 0, 0);
+            right[i].Margin = new Thickness(0);
             right[i].VerticalAlignment = VerticalAlignment.Top;
             DockPanel.SetDock(right[i], Dock.Right);
             row.Children.Add(right[i]);
@@ -153,21 +165,25 @@ internal sealed class WorldSelectorControl : UserControl, IPropertyEditorControl
         if (value.StartsWith(CraftLink.ReplayPrefix, StringComparison.Ordinal))
         {
             var name = value[CraftLink.ReplayPrefix.Length..];
+            showing = true;
             if (replayBox.SelectedItem is not ReplayChoice current || current.Name != name)
             {
-                var choice = new ReplayChoice(name, name);
+                var choice = new ReplayChoice(name, name, "");
                 replayBox.ItemsSource = new[] { choice };
                 replayBox.SelectedItem = choice;
             }
             modeBox.SelectedIndex = ReplayMode;
             if (!nameBox.IsKeyboardFocusWithin) nameBox.Text = "";
+            showing = false;
             return;
         }
+        showing = true;
         if (!nameBox.IsKeyboardFocusWithin) nameBox.Text = value;
+        showing = false;
         if (modeBox.SelectedIndex == ReplayMode && value.Length > 0) modeBox.SelectedIndex = OpenMode;
     }
 
-    sealed record ReplayChoice(string Name, string Label);
+    sealed record ReplayChoice(string Name, string Label, string Path);
 
     async Task RefreshReplayListAsync()
     {
@@ -176,10 +192,12 @@ internal sealed class WorldSelectorControl : UserControl, IPropertyEditorControl
             var selected = (replayBox.SelectedItem as ReplayChoice)?.Name;
             var choices = (await CraftLink.Shared.ListReplaysAsync())
                 .Select(r => new ReplayChoice(r.Name,
-                    $"{r.Name}（{(int)r.Duration.TotalMinutes}:{r.Duration.Seconds:00}{(r.World.Length > 0 ? $"・{r.World}" : "")}{(r.Source.Length > 0 ? $"・{r.Source}" : "")}{(r.Playable ? "" : "・別のバージョンのため再生できません")}）"))
+                    $"{r.Name}（{(int)r.Duration.TotalMinutes}:{r.Duration.Seconds:00}{(r.World.Length > 0 ? $"・{r.World}" : "")}{(r.Source.Length > 0 ? $"・{r.Source}" : "")}{(r.Playable ? "" : "・別のバージョンのため再生できません")}）", r.Path))
                 .ToList();
+            showing = true;
             replayBox.ItemsSource = choices;
             replayBox.SelectedItem = choices.FirstOrDefault(c => c.Name == selected);
+            showing = false;
             if (choices.Count == 0) statusText.Text = "リプレイがありません。MinecraftのYMM4Craftの画面で、リプレイの録画をオンにしてください";
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or TimeoutException or YMM4Craft.Core.Protocol.CraftCommandException)
@@ -190,10 +208,50 @@ internal sealed class WorldSelectorControl : UserControl, IPropertyEditorControl
 
     void Commit(string world)
     {
+        if (world.Length == 0 || world == Value) return;
         BeginEdit?.Invoke(this, EventArgs.Empty);
         Value = world;
         EndEdit?.Invoke(this, EventArgs.Empty);
+        if (world.StartsWith(CraftLink.ReplayPrefix, StringComparison.Ordinal)) return;
+        showing = true;
         nameBox.Text = world;
+        showing = false;
+    }
+
+    async Task ShowWorldFolderAsync()
+    {
+        var world = nameBox.Text.Trim();
+        try
+        {
+            if (CraftLink.Shared.SavesFolder is null) await CraftLink.Shared.ListWorldsAsync();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or TimeoutException or YMM4Craft.Core.Protocol.CraftCommandException)
+        {
+        }
+        if (CraftLink.Shared.SavesFolder is not { } saves)
+        {
+            statusText.Text = "ワールドのフォルダは、Minecraftと接続してから開けます";
+            return;
+        }
+        if (world.Length == 0 || !FolderOpener.Show(Path.Combine(saves, world))) FolderOpener.Open(saves);
+    }
+
+    async Task ShowReplayFileAsync()
+    {
+        var choice = replayBox.SelectedItem as ReplayChoice;
+        var path = choice?.Path ?? "";
+        try
+        {
+            if (path.Length == 0)
+            {
+                var replays = await CraftLink.Shared.ListReplaysAsync();
+                path = replays.FirstOrDefault(r => r.Name == choice?.Name)?.Path ?? replays.FirstOrDefault()?.Path ?? "";
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or TimeoutException or YMM4Craft.Core.Protocol.CraftCommandException)
+        {
+        }
+        if (!FolderOpener.Show(path)) statusText.Text = "リプレイのフォルダは、Minecraftと接続してから開けます";
     }
 
     async Task RefreshWorldListAsync()
@@ -201,8 +259,11 @@ internal sealed class WorldSelectorControl : UserControl, IPropertyEditorControl
         try
         {
             var text = nameBox.Text;
-            nameBox.ItemsSource = await CraftLink.Shared.ListWorldsAsync();
+            var worlds = await CraftLink.Shared.ListWorldsAsync();
+            showing = true;
+            nameBox.ItemsSource = worlds;
             nameBox.Text = text;
+            showing = false;
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or TimeoutException)
         {
@@ -254,12 +315,12 @@ internal sealed class WorldSelectorControl : UserControl, IPropertyEditorControl
 
         var canSelect = !busy && link.IsConnected && link.State != CraftLinkState.LoadingWorld;
         nameBox.IsEnabled = canSelect;
-        openButton.IsEnabled = canSelect;
+        openButton.IsEnabled = link.IsConnected;
         newNameBox.IsEnabled = canSelect;
         createButton.IsEnabled = canSelect;
         kindBox.IsEnabled = canSelect;
         replayBox.IsEnabled = canSelect;
-        replayButton.IsEnabled = canSelect;
+        replayButton.IsEnabled = link.IsConnected;
         modeBox.IsEnabled = !busy;
 
         waitButton.IsEnabled = !link.IsConnected && !link.IsWaiting;

@@ -3,7 +3,6 @@ package com.dolphin_kun.ymm4craft.mixin;
 import com.dolphin_kun.ymm4craft.feature.scene.ModelRenderHolder;
 import com.dolphin_kun.ymm4craft.feature.scene.ModelRenderInfo;
 import com.dolphin_kun.ymm4craft.feature.scene.ModelParts;
-import com.dolphin_kun.ymm4craft.feature.scene.ModelAim;
 import com.dolphin_kun.ymm4craft.feature.scene.ModelBends;
 import com.dolphin_kun.ymm4craft.feature.scene.SceneModels;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
@@ -21,7 +20,6 @@ public abstract class ModelFeatureRendererMixin {
         if (info == null) return;
         if (!info.pose().isEmpty()) {
             ModelParts.applyPose(submit.model().root(), info.pose());
-            ModelAim.apply(submit.model().root(), info.pose(), submit.pose().pose());
             ModelBends.begin(submit.model().root(), info.pose());
         }
         SceneModels.onModelPrepared(info, submit.model(), submit.model().root(), submit.pose().pose());

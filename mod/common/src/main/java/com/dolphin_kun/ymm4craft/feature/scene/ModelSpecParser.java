@@ -24,6 +24,7 @@ public final class ModelSpecParser {
     private static final Pattern PART_NAME_OR_EMPTY = Pattern.compile("[a-z0-9_]{0,64}");
     private static final Pattern PLAYER_NAME = Pattern.compile("[A-Za-z0-9_]{3,16}");
     private static final Pattern SKIN_ID = Pattern.compile("[0-9a-f]{40}");
+    private static final Pattern BLOCK_STATE = Pattern.compile("[a-z0-9_]{1,64}=[a-z0-9_]{1,64}(,[a-z0-9_]{1,64}=[a-z0-9_]{1,64}){0,31}");
     private static final Pattern NBT = Pattern.compile("(?s).{0,8192}");
 
     private ModelSpecParser() {
@@ -49,9 +50,11 @@ public final class ModelSpecParser {
                 }
             }
 
+            String blockState = kind.equals("block") && m.has("state") ? m.getString("state", BLOCK_STATE) : "";
+
             List<PartRotation> pose = m.has("pose") ? parsePose(m.getObjectArray("pose", MAX_POSE_PARTS)) : List.of();
 
-            specs.add(new ModelSpec(key, kind, type, nbt, tag,
+            specs.add(new ModelSpec(key, kind, type, nbt, tag, blockState,
                     m.has("baby") && m.getBoolean("baby"),
                     m.has("scale") ? m.getDouble("scale", 0.0625, 16) : 1,
                     optionalId(m, "mainHand"), optionalId(m, "offHand"),
@@ -91,14 +94,9 @@ public final class ModelSpecParser {
                     (float) Math.toRadians(part.has("y") ? part.getDouble("y", -720, 720) : 0),
                     (float) Math.toRadians(part.has("z") ? part.getDouble("z", -720, 720) : 0),
                     (float) Math.toRadians(part.has("bend") ? part.getDouble("bend", -180, 180) : 0),
-                    (float) Math.toRadians(part.has("bendZ") ? part.getDouble("bendZ", -180, 180) : 0),
-                    part.has("aim") ? aimOf(part.getObject("aim")) : null));
+                    (float) Math.toRadians(part.has("bendZ") ? part.getDouble("bendZ", -180, 180) : 0)));
         }
         return pose;
-    }
-
-    private static double[] aimOf(CommandParams aim) throws CommandException {
-        return new double[]{aim.getDouble("x", -29_999_984, 29_999_984), aim.getDouble("y", -2048, 4096), aim.getDouble("z", -29_999_984, 29_999_984)};
     }
 
     private static Identifier optionalId(CommandParams m, String name) throws CommandException {

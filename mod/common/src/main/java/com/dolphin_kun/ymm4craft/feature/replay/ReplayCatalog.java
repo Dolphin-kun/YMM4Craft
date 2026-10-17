@@ -39,6 +39,7 @@ final class ReplayCatalog {
         for (String name : ReplayFiles.list(folder)) {
             JsonObject o = new JsonObject();
             o.addProperty("name", name);
+            o.addProperty("path", ReplayFiles.dataFile(folder, name).toAbsolutePath().toString());
             JsonObject info = ReplayFiles.readInfo(folder, name);
             if (info != null) {
                 for (String key : new String[]{"durationMs", "world", "player", "startedAt", "gameVersion"}) {
@@ -52,6 +53,7 @@ final class ReplayCatalog {
             JsonObject info = replayModInfo(file);
             JsonObject o = new JsonObject();
             o.addProperty("name", file.getFileName().toString());
+            o.addProperty("path", file.toAbsolutePath().toString());
             o.addProperty("source", "ReplayMod");
             for (String key : new String[]{"durationMs", "world", "startedAt", "gameVersion"}) {
                 if (info.has(key)) o.add(key, info.get(key));
@@ -63,6 +65,7 @@ final class ReplayCatalog {
             JsonObject info = flashbackInfo(file);
             JsonObject o = new JsonObject();
             o.addProperty("name", file.getFileName().toString());
+            o.addProperty("path", file.toAbsolutePath().toString());
             o.addProperty("source", "Flashback");
             for (String key : new String[]{"durationMs", "world", "startedAt", "gameVersion"}) {
                 if (info.has(key)) o.add(key, info.get(key));

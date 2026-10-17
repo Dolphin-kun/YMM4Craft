@@ -193,6 +193,7 @@ public final class WorldCommands {
             for (String name : TempWorlds.listWorlds(savesDir())) worlds.add(name);
             JsonObject o = new JsonObject();
             o.add("worlds", worlds);
+            o.addProperty("folder", savesDir().toAbsolutePath().toString());
             return CompletableFuture.completedFuture(o);
         } catch (IOException e) {
             throw new CommandException("ワールドの一覧を取得できませんでした: " + e.getMessage());

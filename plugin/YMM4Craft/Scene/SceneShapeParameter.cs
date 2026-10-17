@@ -113,6 +113,11 @@ internal sealed class SceneShapeParameter(SharedDataStore? sharedData) : ShapePa
     public bool ReplayShowChat { get => replayShowChat; set => Set(ref replayShowChat, value); }
     bool replayShowChat;
 
+    [Display(GroupName = "ワールド", Name = "HUDを隠す")]
+    [ToggleSlider]
+    public bool HideHud { get => hideHud; set => Set(ref hideHud, value); }
+    bool hideHud = true;
+
     [Display(GroupName = "ワールド", Name = "音", Description = "リプレイの音を WAV に書き出す")]
     [ReplayAudioExport]
     [ShowPropertyEditorWhen(nameof(IsReplay), true)]
@@ -263,11 +268,6 @@ internal sealed class SceneShapeParameter(SharedDataStore? sharedData) : ShapePa
     }
 
     public static bool ShouldSerializeTransparentBackground() => false;
-
-    [Display(GroupName = "出力", Name = "HUDを隠す")]
-    [ToggleSlider]
-    public bool HideHud { get => hideHud; set => Set(ref hideHud, value); }
-    bool hideHud = true;
 
     public SceneShapeParameter() : this(null) { }
 

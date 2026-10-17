@@ -333,11 +333,9 @@ internal sealed class PoseEditorWindow : Window
     {
         var array = new JsonArray();
         var (frame, length) = model.PreviewPosition;
-        double ValueOf(YukkuriMovieMaker.Commons.Animation a) => a.GetValue(frame, Math.Max(length, 1), model.PreviewFps);
-        var origin = (ValueOf(model.X), ValueOf(model.Y), ValueOf(model.Z));
         foreach (var p in model.Pose)
         {
-            if (p.ToJson(ValueOf, origin) is { } part) array.Add(part);
+            if (p.ToJson(a => a.GetValue(frame, Math.Max(length, 1), model.PreviewFps)) is { } part) array.Add(part);
         }
         return array;
     }

@@ -23,6 +23,8 @@ public sealed class CraftLink : IAsyncDisposable
     (CraftHost Host, SceneCatalog Catalog)? catalog;
     readonly Dictionary<string, Task<string?>> skinUploads = [];
     CraftHost? skinHost;
+    readonly Dictionary<string, IReadOnlyList<BlockProperty>> blockProperties = [];
+    CraftHost? blockPropertiesHost;
     (string Name, WorldKind Kind, TaskCompletionSource<string> Done)? pendingCreate;
 
     bool paused;
@@ -226,11 +228,14 @@ public sealed class CraftLink : IAsyncDisposable
         return await h.RequestAsync("core.status", ct: ct).ConfigureAwait(false);
     }
 
+    public string? SavesFolder { get; private set; }
+
     public async Task<IReadOnlyList<string>> ListWorldsAsync(CancellationToken ct = default)
     {
         CraftHost h;
         lock (gate) h = host ?? throw new InvalidOperationException("Minecraftと接続していません");
         var result = await h.RequestAsync("core.listWorlds", ct: ct).ConfigureAwait(false);
+        if ((string?)result?["folder"] is { Length: > 0 } folder) SavesFolder = folder;
         return result?["worlds"]?.AsArray().Select(n => (string?)n).OfType<string>().ToList() ?? [];
     }
 
@@ -267,6 +272,32 @@ public sealed class CraftLink : IAsyncDisposable
             .Where(p => p.Item1 is not null)
             .Select(p => (p.Item1!, p.Item2))
             .ToList() ?? [];
+    }
+
+    public async Task<IReadOnlyList<BlockProperty>> GetBlockPropertiesAsync(string type, CancellationToken ct = default)
+    {
+        CraftHost h;
+        lock (gate)
+        {
+            h = host ?? throw new InvalidOperationException("Minecraftと接続していません");
+            if (!ReferenceEquals(blockPropertiesHost, h))
+            {
+                blockProperties.Clear();
+                blockPropertiesHost = h;
+            }
+            if (blockProperties.TryGetValue(type, out var cached)) return cached;
+        }
+        var result = await h.RequestAsync("scene.blockProperties", new JsonObject { ["type"] = type }, ct: ct).ConfigureAwait(false);
+        IReadOnlyList<BlockProperty> found = result?["properties"]?.AsArray()
+            .Select(n => ((string?)n?["name"], n?["values"]?.AsArray().Select(v => (string?)v).OfType<string>().ToList() ?? [], (string?)n?["default"] ?? ""))
+            .Where(p => p.Item1 is not null && p.Item2.Count > 0)
+            .Select(p => new BlockProperty(p.Item1!, p.Item2, p.Item3))
+            .ToList() ?? [];
+        lock (gate)
+        {
+            if (ReferenceEquals(blockPropertiesHost, h)) blockProperties[type] = found;
+        }
+        return found;
     }
 
     public Task<string?>? UploadSkinAsync(string key, byte[] png)
@@ -424,7 +455,8 @@ public sealed class CraftLink : IAsyncDisposable
                 (string?)n["world"] ?? "",
                 (string?)n["player"] ?? "",
                 (bool?)n["playable"] ?? true,
-                (string?)n["source"] ?? ""))
+                (string?)n["source"] ?? "",
+                (string?)n["path"] ?? ""))
             .OfType<ReplayInfo>()
             .ToList() ?? [];
     }
@@ -815,7 +847,7 @@ public sealed class CraftLink : IAsyncDisposable
                         if (lastSubmittedJson is not null)
                             pendingScene = ((JsonObject)JsonNode.Parse(lastSubmittedJson)!, lastSubmittedRevision);
                     }
-                    SetStatus(CraftLinkState.Ready, $"接続中: {label}");
+                    SetStatus(CraftLinkState.Ready, $"接続中: {label}{VersionNotice(h.Mod)}");
                     lock (gate)
                     {
                         if (pendingScene is not null && !sending)
@@ -867,6 +899,17 @@ public sealed class CraftLink : IAsyncDisposable
                 if (version == worldVersion) return;
             }
         }
+    }
+
+    static string VersionNotice(ModInfo? mod)
+    {
+        var own = typeof(CraftLink).Assembly.GetName().Version;
+        if (mod is null || own is null || !Version.TryParse(mod.ModVersion.Split('+')[0], out var theirs)) return "";
+        var compared = (theirs.Major, theirs.Minor).CompareTo((own.Major, own.Minor));
+        if (compared == 0) return "";
+        return compared < 0
+            ? $"（Minecraft の YMM4Craft が {mod.ModVersion} と古いため、一部の機能が使えません。Mod を {own.Major}.{own.Minor}.{own.Build} に更新してください）"
+            : $"（Minecraft の YMM4Craft {mod.ModVersion} のほうが新しいため、一部の機能が使えません。このプラグインを更新してください）";
     }
 
     void SetStatus(CraftLinkState state, string message)

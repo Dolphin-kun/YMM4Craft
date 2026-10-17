@@ -58,6 +58,7 @@ public final class SceneModels {
         if (placedLevel != level) {
             placed.clear();
             byEntity.clear();
+            ModelBlocks.clear();
             placedLevel = level;
         }
 
@@ -102,6 +103,7 @@ public final class SceneModels {
         }
         placed.clear();
         byEntity.clear();
+        ModelBlocks.clear();
         ModelInspector.clear();
         ModelParenting.clear();
         placedLevel = null;
@@ -162,6 +164,7 @@ public final class SceneModels {
     private static void remove(ClientLevel level, Placed p) {
         placed.remove(p.spec().key());
         byEntity.remove(p.entity());
+        ModelBlocks.forget(p.entity());
         level.removeEntity(p.entity().getId(), Entity.RemovalReason.DISCARDED);
     }
 

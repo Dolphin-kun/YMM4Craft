@@ -20,6 +20,8 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.Property;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -84,6 +86,28 @@ public final class ModelCatalog {
         JsonObject result = new JsonObject();
         result.add("parts", parts);
         return result;
+    }
+
+    public static JsonObject blockProperties(Identifier id) {
+        Block block = ModelBlocks.block(id);
+        BlockState defaults = block.defaultBlockState();
+        JsonArray properties = new JsonArray();
+        for (Property<?> property : block.getStateDefinition().getProperties()) {
+            properties.add(describe(property, defaults));
+        }
+        JsonObject result = new JsonObject();
+        result.add("properties", properties);
+        return result;
+    }
+
+    private static <T extends Comparable<T>> JsonObject describe(Property<T> property, BlockState defaults) {
+        JsonArray values = new JsonArray();
+        for (T value : property.getPossibleValues()) values.add(property.getName(value));
+        JsonObject o = new JsonObject();
+        o.addProperty("name", property.getName());
+        o.add("values", values);
+        o.addProperty("default", property.getName(defaults.getValue(property)));
+        return o;
     }
 
     private static void collect(ModelPart part, int depth, JsonArray out) {
