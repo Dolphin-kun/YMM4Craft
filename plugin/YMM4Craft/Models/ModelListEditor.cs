@@ -58,7 +58,7 @@ internal sealed class ModelListEditor : UserControl, IPropertyEditorControl, IPr
 
         panelList.AddMenuButton(GeometryKeys.Plus, "追加", menu =>
         {
-            foreach (var kind in new[] { SceneModelKind.Player, SceneModelKind.Mob, SceneModelKind.Item })
+            foreach (var kind in new[] { SceneModelKind.Player, SceneModelKind.Mob, SceneModelKind.Item, SceneModelKind.Block })
                 menu.Items.Add(ListPanel.MenuItem(KindName(kind), () => _ = AddAsync(kind)));
         });
         removeButton = panelList.AddButton(GeometryKeys.Minus, "削除", RemoveSelected);
@@ -106,6 +106,7 @@ internal sealed class ModelListEditor : UserControl, IPropertyEditorControl, IPr
     {
         SceneModelKind.Item => "アイテム",
         SceneModelKind.Player => "プレイヤー",
+        SceneModelKind.Block => "ブロック",
         _ => "Mob",
     };
 
@@ -194,6 +195,7 @@ internal sealed class ModelListEditor : UserControl, IPropertyEditorControl, IPr
         {
             SceneModelKind.Item => "minecraft:diamond",
             SceneModelKind.Mob => "minecraft:zombie",
+            SceneModelKind.Block => "minecraft:grass_block",
             _ => "",
         });
         PlaceInFrontOfCamera(model, await ViewAsync() ?? SceneCameraView());

@@ -135,12 +135,19 @@ internal sealed class SceneShapeParameter(SharedDataStore? sharedData) : ShapePa
     public double ReplayTimeAt(long frame, long length, int fps)
     {
         fps = Math.Max(fps, 1);
-        if (ReplaySpeed.Values.Count <= 1)
+        if (ReplaySpeed.Values.Count <= 1 || length <= 0 || length > int.MaxValue - 1)
             return ReplayStart + frame * Math.Max(0, ReplaySpeed.GetValue(0, length, fps)) / fps;
-        double elapsed = 0;
-        for (long f = 0; f < frame; f++) elapsed += Math.Max(0, ReplaySpeed.GetValue(f, length, fps));
-        return ReplayStart + elapsed / fps;
+        var key = $"{length}|{fps}|{ReplayStart}|{YukkuriMovieMaker.Json.Json.GetJsonText(ReplaySpeed)}";
+        var cached = replayTimesCache;
+        if (cached is null || cached.Item1 != key)
+        {
+            cached = Tuple.Create(key, ReplayTimes((int)length, fps));
+            replayTimesCache = cached;
+        }
+        return cached.Item2[Math.Clamp(frame, 0, length)];
     }
+
+    Tuple<string, double[]>? replayTimesCache;
 
     [Display(GroupName = "カメラ", Name = "操作", Description = "クリックしてから、WASD・Space・Shift・Ctrl とドラッグでカメラを動かす")]
     [CameraPad]

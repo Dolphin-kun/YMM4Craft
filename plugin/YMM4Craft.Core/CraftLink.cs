@@ -243,7 +243,7 @@ public sealed class CraftLink : IAsyncDisposable
             if (catalog is { } cached && ReferenceEquals(cached.Host, h)) return cached.Catalog;
         }
         var result = await h.RequestAsync("scene.catalog", ct: ct).ConfigureAwait(false);
-        var made = new SceneCatalog(Entries(result?["mobs"]), Entries(result?["items"]));
+        var made = new SceneCatalog(Entries(result?["mobs"]), Entries(result?["items"]), Entries(result?["blocks"]));
         lock (gate) catalog = (h, made);
         return made;
 
@@ -269,9 +269,8 @@ public sealed class CraftLink : IAsyncDisposable
             .ToList() ?? [];
     }
 
-    public string? UploadSkin(byte[] png, TimeSpan wait)
+    public Task<string?>? UploadSkinAsync(string key, byte[] png)
     {
-        var key = Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(png));
         Task<string?> task;
         lock (gate)
         {
@@ -287,14 +286,7 @@ public sealed class CraftLink : IAsyncDisposable
                 skinUploads[key] = task;
             }
         }
-        try
-        {
-            return task.Wait(wait) ? task.Result : null;
-        }
-        catch (AggregateException)
-        {
-            return null;
-        }
+        return task;
 
         static async Task<string?> Upload(CraftHost h, byte[] png)
         {
@@ -343,12 +335,13 @@ public sealed class CraftLink : IAsyncDisposable
             (double?)view["yaw"] ?? 0, (double?)view["pitch"] ?? 0);
     }
 
-    public async Task<(CameraView View, bool IsRecordedPlayer)?> GetHomeAsync(CancellationToken ct = default)
+    public async Task<(CameraView View, bool IsRecordedPlayer)?> GetHomeAsync(string? player = null, CancellationToken ct = default)
     {
-        var home = await RequireHost().RequestAsync("scene.home", ct: ct).ConfigureAwait(false);
+        var args = string.IsNullOrEmpty(player) ? null : new JsonObject { ["player"] = player };
+        var home = await RequireHost().RequestAsync("scene.home", args, ct: ct).ConfigureAwait(false);
         if (home is null) return null;
         return (new CameraView((double?)home["x"] ?? 0, (double?)home["y"] ?? 0, (double?)home["z"] ?? 0,
-            (double?)home["yaw"] ?? 0, (double?)home["pitch"] ?? 0), (string?)home["kind"] == "recorded");
+            (double?)home["yaw"] ?? 0, (double?)home["pitch"] ?? 0), (string?)home["kind"] is "recorded" or "player");
     }
 
     public async Task<ReplayAudio> ExportReplayAudioAsync(double from, double to, IReadOnlyList<(double Time, CameraView View)>? camera, string path, bool exclusive = false, CancellationToken ct = default)

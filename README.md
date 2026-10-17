@@ -19,14 +19,14 @@ YMM4（ゆっくりMovieMaker4）で、Minecraft（Java版）の世界をその�
 ## YMM4CraftのMod
 
 - Java版 26.3
-- Fabric
-- OptionでMod Menu
+- Fabric または NeoForge
+- OptionでMod Menu（Fabric のとき）
 
 
 ## インストール
 
 1. YMM4 に、`YMM4Craft` のプラグインを入れてください。
-2. Fabric環境のに、`YMM4Craft-｛バージョン｝.jar` を入れてください。
+2. Fabric または NeoForge の環境の `mods` フォルダに、その環境用の `ymm4craft-｛バージョン｝.jar` を入れてください（Fabric 用と NeoForge 用は別のファイルです）。
 
 > [!Note]
 > YMM4 のプラグインと Mod は、**同じバージョン** をそろえて使ってください。  

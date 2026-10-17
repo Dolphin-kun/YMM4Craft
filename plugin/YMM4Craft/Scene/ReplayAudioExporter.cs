@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using YMM4Craft.Controls;
@@ -15,9 +16,7 @@ internal static class ReplayAudioExporter
     const int MaxCameraSamples = 20000;
 
     static readonly Lock gate = new();
-    static readonly Dictionary<SceneShapeParameter, string> requested = new(ReferenceEqualityComparer.Instance);
-    static readonly Dictionary<SceneShapeParameter, long> quietUntil = new(ReferenceEqualityComparer.Instance);
-    static readonly HashSet<SceneShapeParameter> waiting = new(ReferenceEqualityComparer.Instance);
+    static readonly ConditionalWeakTable<SceneShapeParameter, ReplayAudioAutoState> states = new();
     const int QuietMilliseconds = 3000;
     static bool exporting;
 
@@ -54,8 +53,10 @@ internal static class ReplayAudioExporter
         if (!YMM4CraftSettings.Default.AutoExportAudio || CraftLink.Shared.State != CraftLinkState.Ready) return;
         lock (gate)
         {
-            quietUntil[p] = Environment.TickCount64 + QuietMilliseconds;
-            if (!waiting.Add(p)) return;
+            var state = states.GetOrCreateValue(p);
+            state.QuietUntil = Environment.TickCount64 + QuietMilliseconds;
+            if (state.Waiting) return;
+            state.Waiting = true;
         }
         _ = WaitQuietAsync(p);
     }
@@ -65,7 +66,7 @@ internal static class ReplayAudioExporter
         while (true)
         {
             long left;
-            lock (gate) left = quietUntil[p] - Environment.TickCount64;
+            lock (gate) left = states.GetOrCreateValue(p).QuietUntil - Environment.TickCount64;
             if (left <= 0) break;
             await Task.Delay(TimeSpan.FromMilliseconds(left));
         }
@@ -73,17 +74,18 @@ internal static class ReplayAudioExporter
         var retry = false;
         lock (gate)
         {
-            waiting.Remove(p);
-            if (path is null || (requested.TryGetValue(p, out var last) && last == path)) return;
+            var state = states.GetOrCreateValue(p);
+            state.Waiting = false;
+            if (path is null || state.Requested == path) return;
             if (exporting)
             {
-                quietUntil[p] = Environment.TickCount64 + QuietMilliseconds;
-                if (!waiting.Add(p)) return;
+                state.QuietUntil = Environment.TickCount64 + QuietMilliseconds;
+                state.Waiting = true;
                 retry = true;
             }
             else
             {
-                requested[p] = path;
+                state.Requested = path;
                 if (File.Exists(path)) return;
                 exporting = true;
             }
@@ -103,7 +105,7 @@ internal static class ReplayAudioExporter
         catch (Exception ex) when (ex is InvalidOperationException or IOException or TimeoutException or UnauthorizedAccessException
                                        or InvalidDataException or YMM4Craft.Core.Protocol.CraftCommandException)
         {
-            lock (gate) requested.Remove(p);
+            lock (gate) states.GetOrCreateValue(p).Requested = null;
         }
         finally
         {

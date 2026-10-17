@@ -2,6 +2,7 @@ using YMM4Craft.Controls;
 using System.ComponentModel.DataAnnotations;
 using YukkuriMovieMaker.Commons;
 using YukkuriMovieMaker.Controls;
+using YukkuriMovieMaker.ItemEditor.CustomVisibilityAttributes;
 
 namespace YMM4Craft.Models;
 
@@ -32,6 +33,26 @@ public sealed class ScenePartPose : Animatable
     [AnimationSlider("F1", "°", -150, 150)]
     public Animation BendSide { get; } = new Animation(0, -180, 180);
 
+    [Display(GroupName = Group, Name = "目標に向ける", Description = "部位の先を目標の位置に向ける。腕と脚は先を、頭は顔を向ける")]
+    [ToggleSlider]
+    public bool Aim { get => aim; set => Set(ref aim, value); }
+    bool aim;
+
+    [Display(GroupName = Group, Name = "目標 X", Description = "モデルの位置から見た目標の位置")]
+    [AnimationSlider("F2", "", -8, 8)]
+    [ShowPropertyEditorWhen(nameof(Aim), true)]
+    public Animation AimX { get; } = new Animation(0, -10000, 10000);
+
+    [Display(GroupName = Group, Name = "目標 Y", Description = "モデルの位置から見た目標の位置")]
+    [AnimationSlider("F2", "", -8, 8)]
+    [ShowPropertyEditorWhen(nameof(Aim), true)]
+    public Animation AimY { get; } = new Animation(1.5, -10000, 10000);
+
+    [Display(GroupName = Group, Name = "目標 Z", Description = "モデルの位置から見た目標の位置")]
+    [AnimationSlider("F2", "", -8, 8)]
+    [ShowPropertyEditorWhen(nameof(Aim), true)]
+    public Animation AimZ { get; } = new Animation(2, -10000, 10000);
+
     [Newtonsoft.Json.JsonIgnore]
     public string Label => DisplayName(Name);
 
@@ -39,12 +60,12 @@ public sealed class ScenePartPose : Animatable
 
     public ScenePartPose(string name) => this.name = name;
 
-    protected override IEnumerable<IAnimatable> GetAnimatables() => [X, Y, Z, Bend, BendSide];
+    protected override IEnumerable<IAnimatable> GetAnimatables() => [X, Y, Z, Bend, BendSide, AimX, AimY, AimZ];
 
-    internal System.Text.Json.Nodes.JsonObject? ToJson(Func<Animation, double> valueOf)
+    internal System.Text.Json.Nodes.JsonObject? ToJson(Func<Animation, double> valueOf, (double X, double Y, double Z) origin)
     {
         var (x, y, z, bend, side) = (valueOf(X), valueOf(Y), valueOf(Z), valueOf(Bend), valueOf(BendSide));
-        if (x == 0 && y == 0 && z == 0 && bend == 0 && side == 0) return null;
+        if (x == 0 && y == 0 && z == 0 && bend == 0 && side == 0 && !Aim) return null;
         var o = new System.Text.Json.Nodes.JsonObject
         {
             ["name"] = Name,
@@ -54,6 +75,15 @@ public sealed class ScenePartPose : Animatable
         };
         if (bend != 0) o["bend"] = Math.Clamp(bend, -180, 180);
         if (side != 0) o["bendZ"] = Math.Clamp(side, -180, 180);
+        if (Aim)
+        {
+            o["aim"] = new System.Text.Json.Nodes.JsonObject
+            {
+                ["x"] = origin.X + valueOf(AimX),
+                ["y"] = Math.Clamp(origin.Y + valueOf(AimY), -2048, 4096),
+                ["z"] = origin.Z + valueOf(AimZ),
+            };
+        }
         return o;
     }
 
@@ -65,6 +95,10 @@ public sealed class ScenePartPose : Animatable
         copy.Z.CopyFrom(Z);
         copy.Bend.CopyFrom(Bend);
         copy.BendSide.CopyFrom(BendSide);
+        copy.Aim = Aim;
+        copy.AimX.CopyFrom(AimX);
+        copy.AimY.CopyFrom(AimY);
+        copy.AimZ.CopyFrom(AimZ);
         return copy;
     }
 

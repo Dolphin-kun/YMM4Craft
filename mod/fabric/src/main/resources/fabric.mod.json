@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "ymm4craft",
+  "version": "${version}",
+  "name": "YMM4Craft",
+  "description": "YMM4（ゆっくりMovieMaker4）と連携するためのMod。YMM4と接続している間だけ動き、普段はバニラと同じ動作になる（設定でリプレイの録画をオンにしたときを除く）。",
+  "authors": ["dolphin_kun"],
+  "license": "MIT",
+  "icon": "assets/ymm4craft/textures/gui/sprites/ymm4.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.dolphin_kun.ymm4craft.fabric.FabricEntry"
+    ],
+    "modmenu": [
+      "com.dolphin_kun.ymm4craft.fabric.ModMenuIntegration"
+    ]
+  },
+  "mixins": [
+    "ymm4craft.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "minecraft": "${minecraft_version}",
+    "java": ">=25"
+  }
+}

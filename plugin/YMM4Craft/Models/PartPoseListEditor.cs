@@ -218,6 +218,7 @@ internal sealed class PartPoseListEditor : UserControl, IPropertyEditorControl, 
     {
         foreach (var a in new[] { pose.X, pose.Y, pose.Z, pose.Bend, pose.BendSide })
             foreach (var v in a.Values) v.Value = 0;
+        pose.Aim = false;
     }
 
     void OpenWindow()

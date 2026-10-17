@@ -71,9 +71,9 @@ public sealed partial class SceneModel : Animatable
         nameof(ShowEffects), nameof(ShowEffectsBody), nameof(ShowEffectsMob), nameof(ShowGlowColor), nameof(ShowParent), nameof(ShowPose),
     ];
 
-    [JsonIgnore] public bool HasBody => Kind != SceneModelKind.Item;
+    [JsonIgnore] public bool HasBody => Kind is SceneModelKind.Mob or SceneModelKind.Player;
     [JsonIgnore] public bool HasType => Kind != SceneModelKind.Player;
-    [JsonIgnore] public bool ShowLookBody => UseLook && HasBody;
+    [JsonIgnore] public bool ShowLookBody => UseLook && (HasBody || Kind == SceneModelKind.Block);
     [JsonIgnore] public bool ShowLookMob => UseLook && Kind == SceneModelKind.Mob;
     [JsonIgnore] public bool ShowLookPlayer => UseLook && Kind == SceneModelKind.Player;
     [JsonIgnore] public bool ShowSkinFile => ShowLookPlayer && SkinSource == SceneSkinSource.File;
@@ -89,6 +89,8 @@ public sealed partial class SceneModel : Animatable
     internal IEnumerable<(string Name, string Label)> AvailableGroups =>
         HasBody
             ? [("look", LookGroup), ("armor", ArmorGroup), ("effects", EffectGroup), ("parent", ParentGroup), ("pose", PoseGroup)]
+            : Kind == SceneModelKind.Block
+            ? [("look", LookGroup), ("effects", EffectGroup), ("parent", ParentGroup)]
             : [("effects", EffectGroup), ("parent", ParentGroup)];
 
     internal bool IsGroupEnabled(string name) => name switch
@@ -381,7 +383,7 @@ public sealed partial class SceneModel : Animatable
         this.kind = kind;
         this.type = type;
         useLook = useArmor = useEffects = useParent = false;
-        autoWalk = kind != SceneModelKind.Item;
+        autoWalk = kind is SceneModelKind.Mob or SceneModelKind.Player;
         usePose = kind == SceneModelKind.Player;
         if (kind == SceneModelKind.Player)
             Pose = [.. DefaultPoseParts.Select(n => new ScenePartPose(n))];
@@ -431,8 +433,8 @@ public sealed partial class SceneModel : Animatable
     public string Label => Kind switch
     {
         SceneModelKind.Player => "プレイヤー",
-        _ when Type.Length == 0 => Kind == SceneModelKind.Item ? "アイテム（未指定）" : "Mob（未指定）",
-        _ => CatalogNames.NameOf(Kind == SceneModelKind.Item ? CatalogKind.Item : CatalogKind.Mob, Type),
+        _ when Type.Length == 0 => Kind switch { SceneModelKind.Item => "アイテム（未指定）", SceneModelKind.Block => "ブロック（未指定）", _ => "Mob（未指定）" },
+        _ => CatalogNames.NameOf(CatalogNames.KindOf(Kind), Type),
     };
 
     [JsonIgnore]
@@ -476,7 +478,7 @@ public sealed partial class SceneModel : Animatable
         var o = new System.Text.Json.Nodes.JsonObject
         {
             ["id"] = Key,
-            ["kind"] = Kind switch { SceneModelKind.Item => "item", SceneModelKind.Player => "player", _ => "mob" },
+            ["kind"] = Kind switch { SceneModelKind.Item => "item", SceneModelKind.Player => "player", SceneModelKind.Block => "block", _ => "mob" },
             ["x"] = X.GetValue(frame, length, fps),
             ["y"] = Math.Clamp(Y.GetValue(frame, length, fps), -2048, 4096),
             ["z"] = Z.GetValue(frame, length, fps),
@@ -493,6 +495,7 @@ public sealed partial class SceneModel : Animatable
             if (CatalogNames.ToId(OffHand) is { } off) o["offHand"] = off;
         }
 
+        if (Kind == SceneModelKind.Block) o["scale"] = Math.Clamp(Scale.GetValue(frame, length, fps), 0.0625, 16);
         if (HasBody)
         {
             o["scale"] = Math.Clamp(Scale.GetValue(frame, length, fps), 0.0625, 16);
@@ -524,9 +527,10 @@ public sealed partial class SceneModel : Animatable
         if (HasBody)
         {
             var parts = new System.Text.Json.Nodes.JsonArray();
+            var origin = ((double)o["x"]!, (double)o["y"]!, (double)o["z"]!);
             foreach (var p in Pose)
             {
-                if (p.ToJson(a => a.GetValue(frame, length, fps)) is { } part) parts.Add(part);
+                if (p.ToJson(a => a.GetValue(frame, length, fps), origin) is { } part) parts.Add(part);
             }
             if (parts.Count > 0) o["pose"] = parts;
         }
