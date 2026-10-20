@@ -24,7 +24,7 @@ final class ReplayBlockIndex {
                 if (!(e instanceof JsonArray pair) || pair.size() != 2) continue;
                 long entry = pair.get(0).getAsLong();
                 long offset = pair.get(1).getAsLong();
-                ReplayBlock last = blocks.getLast();
+                ReplayBlock last = blocks.get(blocks.size() - 1);
                 if (entry > last.entry() && offset > last.offset()) blocks.add(new ReplayBlock(entry, offset));
             }
         }

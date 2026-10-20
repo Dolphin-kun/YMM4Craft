@@ -1,0 +1,65 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+def minecraftVersion = '1.21.1'
+def neoforgeVersion = '21.1.262'
+
+version = "${project.mod_version}+${minecraftVersion}"
+group = project.maven_group
+
+base {
+    archivesName = "${project.archives_base_name}-neoforge"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+}
+
+sourceSets {
+    main {
+        java.srcDir '../shared/src/main/java'
+    }
+}
+
+neoForge {
+    version = neoforgeVersion
+
+    runs {
+        client {
+            client()
+            gameDirectory = project.file('../run-neoforge-1.21.1')
+            systemProperty 'ymm4craft.manual', 'true'
+            if (project.hasProperty('quickPlay')) programArguments.addAll('--quickPlaySingleplayer', project.property('quickPlay').toString())
+        }
+    }
+
+    mods {
+        ymm4craft {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+processResources {
+    inputs.property "version", project.version
+    filteringCharset "UTF-8"
+
+    filesMatching("META-INF/neoforge.mods.toml") {
+        expand "version": project.version,
+                "minecraft_version": minecraftVersion,
+                "neoforge_version": neoforgeVersion
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.encoding = "UTF-8"
+    it.options.release.set(21)
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs += ['-Xmaxerrs', '5000']
+    options.fork = true
+    options.forkOptions.jvmArgs += ['-Duser.language=en']
+}

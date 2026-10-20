@@ -1,10 +1,16 @@
 tasks.register('collectJars') {
-    dependsOn ':fabric:build', ':neoforge:build'
+    def outputs = [
+            'fabric'         : ['fabric', 'jar'],
+            'neoforge'       : ['neoforge', 'jar'],
+            'neoforge-1.21.1': ['neoforge', 'jar'],
+            'forge-1.20.1'   : ['forge', 'reobfJar'],
+    ]
+    dependsOn outputs.keySet().collect { ":${it}:build" }
     doLast {
-        ['fabric', 'neoforge'].each { loader ->
+        outputs.each { path, output ->
             copy {
-                from project(":${loader}").tasks.named('jar').flatMap { it.archiveFile }
-                into rootProject.file("../dist/mod/${loader}")
+                from project(":${path}").tasks.named(output[1]).flatMap { it.archiveFile }
+                into rootProject.file("../dist/mod/${output[0]}")
             }
         }
     }

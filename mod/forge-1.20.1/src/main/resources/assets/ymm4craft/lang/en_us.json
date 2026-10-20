@@ -1,0 +1,27 @@
+{
+  "ymm4craft.config.title": "YMM4Craft Settings",
+  "ymm4craft.config.link": "Auto connect",
+  "ymm4craft.config.link.tooltip": "Connects automatically on the title screen while YMM4 is waiting.",
+  "ymm4craft.config.record": "Record replays",
+  "ymm4craft.config.record.tooltip": "Records your play so you can re-shoot it from any camera in YMM4.\nEverything you receive, such as chat, is recorded too.",
+  "ymm4craft.config.record.singleplayer": "Record singleplayer",
+  "ymm4craft.config.record.singleplayer.tooltip": "Records singleplayer worlds.",
+  "ymm4craft.config.record.multiplayer": "Record multiplayer",
+  "ymm4craft.config.record.multiplayer.tooltip": "Records servers, LAN and Realms.\nSome servers forbid recording, so check their rules.",
+  "ymm4craft.config.record.notify": "Announce in chat",
+  "ymm4craft.config.record.notify.tooltip": "Shows a chat message only you can see when recording starts.",
+  "ymm4craft.config.openFolder": "Open replay folder",
+  "ymm4craft.replay.recording": "[YMM4Craft] Recording replay: %s",
+  "ymm4craft.replay.saved": "[YMM4Craft] Replay saved: %s",
+  "ymm4craft.screen.title": "YMM4Craft",
+  "ymm4craft.screen.button.tooltip": "YMM4Craft",
+  "ymm4craft.screen.connection": "Connection to YMM4",
+  "ymm4craft.screen.connect": "Connect to YMM4",
+  "ymm4craft.screen.status.waiting": "YMM4 is waiting for a connection.\nPress \"Connect to YMM4\" to use this game from YMM4.",
+  "ymm4craft.screen.status.none": "No YMM4 is waiting.\nPlace a YMM4Craft scene in YMM4 to connect from here.",
+  "ymm4craft.screen.status.version": "YMM4 is waiting, but the plugin and the mod versions do not match.
+Use the same version for both.",
+  "ymm4craft.screen.status.linked": "Connected to YMM4",
+  "ymm4craft.screen.connectFailed": "Could not connect: %s",
+  "ymm4craft.screen.replay": "Replays"
+}

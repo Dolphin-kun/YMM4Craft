@@ -2,6 +2,7 @@ package com.dolphin_kun.ymm4craft.mixin;
 
 import com.dolphin_kun.ymm4craft.Ymm4Craft;
 import com.dolphin_kun.ymm4craft.core.ClientHooks;
+import com.dolphin_kun.ymm4craft.core.CommandRegistry;
 import com.dolphin_kun.ymm4craft.core.CoreCommands;
 import com.dolphin_kun.ymm4craft.feature.replay.ReplayPlayback;
 import net.minecraft.client.Minecraft;
@@ -49,6 +50,11 @@ public abstract class MinecraftMixin {
     @Inject(method = "close", at = @At("HEAD"))
     private void ymm4craft$stopping(CallbackInfo ci) {
         ClientHooks.fireStopping((Minecraft) (Object) this);
+    }
+
+    @Inject(method = "runTick", at = @At("HEAD"))
+    private void ymm4craft$runCommands(boolean renderLevel, CallbackInfo ci) {
+        CommandRegistry.runPending();
     }
 
     @ModifyConstant(method = "runTick", constant = @Constant(intValue = 10))

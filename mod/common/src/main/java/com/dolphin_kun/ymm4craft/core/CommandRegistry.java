@@ -1,12 +1,12 @@
 package com.dolphin_kun.ymm4craft.core;
 
 import com.google.gson.JsonElement;
-import net.minecraft.client.Minecraft;
 
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -16,6 +16,7 @@ public final class CommandRegistry {
         CompletableFuture<JsonElement> handle(CommandParams params) throws CommandException;
     }
 
+    private static final ConcurrentLinkedQueue<Runnable> pending = new ConcurrentLinkedQueue<>();
     private static final Pattern NAME = Pattern.compile("[a-z]+\\.[a-zA-Z]+");
 
     private final Map<String, Handler> handlers = new ConcurrentHashMap<>();
@@ -41,7 +42,7 @@ public final class CommandRegistry {
 
     public static <T> CompletableFuture<T> onMainThread(Supplier<T> work) {
         CompletableFuture<T> future = new CompletableFuture<>();
-        Minecraft.getInstance().execute(() -> {
+        pending.add(() -> {
             try {
                 future.complete(work.get());
             } catch (Throwable t) {
@@ -49,6 +50,10 @@ public final class CommandRegistry {
             }
         });
         return future;
+    }
+
+    public static void runPending() {
+        for (Runnable task; (task = pending.poll()) != null; ) task.run();
     }
 
 }

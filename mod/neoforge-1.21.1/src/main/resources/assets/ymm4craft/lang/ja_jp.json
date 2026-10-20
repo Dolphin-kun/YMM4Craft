@@ -1,0 +1,27 @@
+{
+  "ymm4craft.config.title": "YMM4Craft の設定",
+  "ymm4craft.config.link": "自動で接続",
+  "ymm4craft.config.link.tooltip": "YMM4が接続を待っているとき、タイトル画面で自動で接続します。",
+  "ymm4craft.config.record": "リプレイを録画",
+  "ymm4craft.config.record.tooltip": "遊んでいる様子を録画し、YMM4で好きなカメラから撮り直せるようにします。\nチャットなど受け取った内容もすべて録画されます。",
+  "ymm4craft.config.record.singleplayer": "シングルを録画",
+  "ymm4craft.config.record.singleplayer.tooltip": "シングルプレイのワールドを録画します。",
+  "ymm4craft.config.record.multiplayer": "マルチを録画",
+  "ymm4craft.config.record.multiplayer.tooltip": "サーバー・LAN・Realmsを録画します。\n録画を禁止しているサーバーもあるので、ルールを確認してください。",
+  "ymm4craft.config.record.notify": "録画をチャットに表示",
+  "ymm4craft.config.record.notify.tooltip": "録画を始めたとき、自分にだけ見えるお知らせをチャット欄に出します。",
+  "ymm4craft.config.openFolder": "リプレイのフォルダを開く",
+  "ymm4craft.replay.recording": "[YMM4Craft] リプレイを録画しています: %s",
+  "ymm4craft.replay.saved": "[YMM4Craft] リプレイを保存しました: %s",
+  "ymm4craft.screen.title": "YMM4Craft",
+  "ymm4craft.screen.button.tooltip": "YMM4Craft",
+  "ymm4craft.screen.connection": "YMM4との接続",
+  "ymm4craft.screen.connect": "YMM4と接続",
+  "ymm4craft.screen.status.waiting": "YMM4が接続を待っています。\n「YMM4と接続」を押すと、YMM4で使えます。",
+  "ymm4craft.screen.status.none": "接続を待っているYMM4はありません。\nYMM4でYMM4Craftシーンを置くと接続できます。",
+  "ymm4craft.screen.status.version": "YMM4が待っていますが、プラグインと Mod の版が合いません。
+両方を同じ版にそろえてください。",
+  "ymm4craft.screen.status.linked": "YMM4と接続しています",
+  "ymm4craft.screen.connectFailed": "接続できませんでした: %s",
+  "ymm4craft.screen.replay": "リプレイ"
+}
