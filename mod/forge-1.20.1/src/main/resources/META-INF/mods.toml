@@ -1,0 +1,26 @@
+modLoader = "javafml"
+loaderVersion = "[47,)"
+license = "MIT"
+
+[[mods]]
+modId = "ymm4craft"
+version = "${version}"
+displayName = "YMM4Craft"
+authors = "dolphin_kun"
+description = "YMM4（ゆっくりMovieMaker4）と連携するためのMod。YMM4と接続している間だけ動き、普段はバニラと同じ動作になる（設定でリプレイの録画をオンにしたときを除く）。"
+logoFile = "assets/ymm4craft/textures/gui/sprites/ymm4.png"
+displayTest = "IGNORE_ALL_VERSION"
+
+[[dependencies.ymm4craft]]
+modId = "forge"
+mandatory = true
+versionRange = "[47,)"
+ordering = "NONE"
+side = "CLIENT"
+
+[[dependencies.ymm4craft]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[${minecraft_version}]"
+ordering = "NONE"
+side = "CLIENT"

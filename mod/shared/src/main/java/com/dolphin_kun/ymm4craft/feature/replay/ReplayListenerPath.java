@@ -24,7 +24,7 @@ final class ReplayListenerPath {
     float[] at(int tick) {
         if (recorded != null) {
             if (recorded.isEmpty()) return null;
-            for (int i = Math.clamp(tick - 1, 0, recorded.size() - 1); i >= 0; i--) {
+            for (int i = Math.max(0, Math.min(tick - 1, recorded.size() - 1)); i >= 0; i--) {
                 if (recorded.get(i) != null) return recorded.get(i);
             }
             return null;

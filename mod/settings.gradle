@@ -17,4 +17,4 @@ plugins {
 }
 
 rootProject.name = 'ymm4craft'
-include 'fabric', 'neoforge'
+include 'fabric', 'neoforge', 'neoforge-1.21.1', 'forge-1.20.1'

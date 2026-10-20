@@ -1,0 +1,78 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev.legacyforge' version '2.0.148'
+}
+
+def minecraftVersion = '1.20.1'
+def forgeVersion = '1.20.1-47.4.28'
+
+version = "${project.mod_version}+${minecraftVersion}"
+group = project.maven_group
+
+base {
+    archivesName = "${project.archives_base_name}-forge"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+}
+
+sourceSets {
+    main {
+        java.srcDir '../shared/src/main/java'
+    }
+}
+
+legacyForge {
+    version = forgeVersion
+    accessTransformers = ['src/main/resources/META-INF/accesstransformer.cfg']
+
+    runs {
+        client {
+            client()
+            gameDirectory = project.file('../run-forge-1.20.1')
+            systemProperty 'ymm4craft.manual', 'true'
+            if (project.hasProperty('quickPlay')) programArguments.addAll('--quickPlaySingleplayer', project.property('quickPlay').toString())
+        }
+    }
+
+    mods {
+        ymm4craft {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+mixin {
+    add sourceSets.main, 'ymm4craft.refmap.json'
+    config 'ymm4craft.mixins.json'
+}
+
+dependencies {
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+}
+
+processResources {
+    inputs.property "version", project.version
+    filteringCharset "UTF-8"
+
+    filesMatching("META-INF/mods.toml") {
+        expand "version": project.version,
+                "minecraft_version": minecraftVersion
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.encoding = "UTF-8"
+    it.options.release.set(17)
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs += ['-Xmaxerrs', '5000']
+    options.fork = true
+    options.forkOptions.jvmArgs += ['-Duser.language=en']
+}
+
+jar {
+    manifest.attributes('MixinConfigs': 'ymm4craft.mixins.json')
+}

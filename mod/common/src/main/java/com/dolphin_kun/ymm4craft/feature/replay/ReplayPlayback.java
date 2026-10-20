@@ -551,10 +551,9 @@ public final class ReplayPlayback {
                 readyMs = e.timeMs();
                 rewriter.markReady();
             } else {
-                boolean play = currentProtocol() == ConnectionProtocol.PLAY;
                 if (!inPlay) prefix.add(e);
-                if (play) inPlay = true;
                 feed(e);
+                if (rewriter.recordedPlayerId() != Integer.MIN_VALUE) inPlay = true;
                 if (!input.marksReady() && rewriter.sawPosition()) {
                     readyMs = e.timeMs();
                     rewriter.markReady();
