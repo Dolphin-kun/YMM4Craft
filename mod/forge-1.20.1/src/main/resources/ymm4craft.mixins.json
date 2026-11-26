@@ -30,6 +30,7 @@
     "ItemInHandRendererAccessor",
     "ItemInHandRendererMixin",
     "LevelInvoker",
+    "LevelRendererAccessor",
     "LevelRendererMixin",
     "LivingEntityMixin",
     "LivingEntityRendererMixin",
