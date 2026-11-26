@@ -7,7 +7,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.chunk.ChunkRenderDispatcher;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL15;
@@ -43,7 +42,14 @@ public final class FrameCapture {
     private long streamIntervalNanos;
 
     private static final long MIN_QUIET_NANOS = 500_000_000L;
+    private static final long CHUNK_QUIET_NANOS = 1_000_000_000L;
+    private static final int MIN_QUIET_FRAMES = 2;
     private long quietSince = -1;
+    private int quietFrames;
+    private boolean terrainKnown;
+    private boolean replay;
+    private long chunksChangedAt = -1;
+    private long lastPlayerChunk = Long.MIN_VALUE;
     private int lastLoadedChunks = -1;
     private int lastVisibleSections = -1;
     private long lastRevision = -1;
@@ -251,26 +257,45 @@ public final class FrameCapture {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) {
             quietSince = -1;
+            quietFrames = 0;
+            chunksChangedAt = -1;
             lastLoadedChunks = -1;
             return;
         }
+        long now = System.nanoTime();
+        replay = ReplayPlayback.active();
         int loaded = mc.level.getChunkSource().getLoadedChunksCount();
-        int visible = mc.levelRenderer.countRenderedChunks();
+        long playerChunk = mc.player == null ? Long.MIN_VALUE : mc.player.chunkPosition().toLong();
+        TerrainState terrain = TerrainWork.current(mc);
+        terrainKnown = terrain != null;
+        int visible = terrain != null ? terrain.visibleSections() : mc.levelRenderer.countRenderedChunks();
+        boolean busy = terrain != null ? terrain.busy() : (mc.levelRenderer.getChunkRenderDispatcher() != null && !mc.levelRenderer.getChunkRenderDispatcher().isQueueEmpty());
         long revision = SceneFeature.appliedRevision();
-        ChunkRenderDispatcher dispatcher = mc.levelRenderer.getChunkRenderDispatcher();
-        boolean quiet = (dispatcher == null || dispatcher.isQueueEmpty())
-                && loaded == lastLoadedChunks
+        boolean chunksChanged = loaded != lastLoadedChunks || (!replay && playerChunk != lastPlayerChunk);
+        if (chunksChanged || chunksChangedAt < 0) chunksChangedAt = now;
+        boolean quiet = !busy
+                && !chunksChanged
                 && visible == lastVisibleSections
                 && revision == lastRevision;
         lastLoadedChunks = loaded;
+        lastPlayerChunk = playerChunk;
         lastVisibleSections = visible;
         lastRevision = revision;
-        if (!quiet) quietSince = -1;
-        else if (quietSince < 0) quietSince = System.nanoTime();
+        if (!quiet) {
+            quietSince = -1;
+            quietFrames = 0;
+        } else {
+            if (quietSince < 0) quietSince = now;
+            quietFrames++;
+        }
     }
 
     private boolean isSettled() {
-        return quietSince >= 0 && System.nanoTime() - quietSince >= MIN_QUIET_NANOS;
+        if (quietSince < 0) return false;
+        long now = System.nanoTime();
+        if (!terrainKnown) return now - quietSince >= (replay ? MIN_QUIET_NANOS : CHUNK_QUIET_NANOS);
+        if (quietFrames < MIN_QUIET_FRAMES) return false;
+        return replay || now - chunksChangedAt >= CHUNK_QUIET_NANOS;
     }
 
     private Readback takeBuffer(long size) {
